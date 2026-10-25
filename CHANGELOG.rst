@@ -31,6 +31,8 @@ Unreleased
 
 **Fixed**
 
+- CoilMQ does not preserve significant whitespace in headers (:issue:`99`)
+
 **Security**
 
 v1.1.0
