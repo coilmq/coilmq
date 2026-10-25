@@ -24,10 +24,9 @@ from coilmq.util.frames import EmptyBuffer, parse_headers
         ),
         # Header value contains leading and trailing whitepace. The case is intended to
         # demonstrate https://github.com/coilmq/coilmq/issues/99.
-        pytest.param(
+        (
             b"SEND\ndestination:/queue/foo\n foo : bar \n\n\x00",
             ("SEND", OrderedDict([("destination", "/queue/foo"), (" foo ", " bar ")])),
-            marks=[pytest.mark.xfail],
         ),
     ],
 )
