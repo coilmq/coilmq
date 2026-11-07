@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import io
 import logging
 import re
@@ -52,18 +54,32 @@ class EmptyBuffer(Exception):
     """The buffer is empty."""
 
 
-def parse_headers(buff: io.BytesIO):
+def parse_headers(buff: io.BytesIO) -> tuple[str, OrderedDict[str, str]]:
     """Parses buffer and returns command and headers as strings.
 
-    :param buff: Buffer containing frame
-    :type buff: io.BytesIO
+    :param buff: The buffer from which to extract the command and headers
+    :returns: The command name and headers
+    :raises EmptyBuffer: if the buffer does not contain at least a command name.
+
     """
-    preamble_lines = [
-        line.decode() for line in iter(lambda: buff.readline().strip(), b"")
-    ]
-    if not preamble_lines:
+    line = buff.readline()
+    trim: int = 1
+    command = line[:-trim].decode()
+    if not command:
         raise EmptyBuffer()
-    return preamble_lines[0], OrderedDict([l.split(":") for l in preamble_lines[1:]])
+
+    headers = OrderedDict()
+
+    for line in iter(buff):
+        trim = 1
+        header = line[:-trim]
+        if not header:
+            break
+
+        name, value = (part.decode() for part in header.split(b":"))
+        headers[name] = value
+
+    return command, headers
 
 
 def parse_body(buff, headers):
