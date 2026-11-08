@@ -5,6 +5,7 @@ from collections import OrderedDict
 
 import pytest
 
+from coilmq.exception import ProtocolError
 from coilmq.util.frames import EmptyBuffer, parse_headers
 
 
@@ -31,6 +32,13 @@ from coilmq.util.frames import EmptyBuffer, parse_headers
             b"SEND\ndestination:/queue/foo\n foo : bar \n\n\x00",
             ("SEND", OrderedDict([("destination", "/queue/foo"), (" foo ", " bar ")])),
         ),
+        # Header contains multiple colon characters.  This case is intended to
+        # demonstrate https://github.com/coilmq/coilmq/issues/103.
+        (
+            "stomp1.0",
+            b"SEND\ndestination:/queue/foo\nfoo:bar:\n\n\x00",
+            ("SEND", OrderedDict([("destination", "/queue/foo"), ("foo", "bar:")])),
+        ),
         # Header name and value contain leading and trailing whitepace and escaped
         # characters.  This case is intended to demonstrate
         # https://github.com/coilmq/coilmq/issues/100.
@@ -44,6 +52,23 @@ from coilmq.util.frames import EmptyBuffer, parse_headers
                     (" foo \r\n", " bar::baz\r\n "),
                 ]),
             ),
+        ),
+        # Header name consists of a single space.  Header value is absent.  This case is
+        # intended to demonstrate https://github.com/coilmq/coilmq/issues/103.
+        (
+            "stomp1.1",
+            b"SEND\ndestination:/queue/foo\n :\n\n\x00",
+            ("SEND", OrderedDict([("destination", "/queue/foo"), (" ", "")])),
+        ),
+        (
+            "stomp1.2",
+            b"SEND\ndestination:/queue/foo\n :\n\n\x00",
+            ("SEND", OrderedDict([("destination", "/queue/foo"), (" ", "")])),
+        ),
+        (
+            "stomp1.2",
+            b"SEND\r\ndestination:/queue/foo\r\n :\r\n\r\n\x00",
+            ("SEND", OrderedDict([("destination", "/queue/foo"), (" ", "")])),
         ),
         # Command and preamble are both terminated by CR+LF.
         (
@@ -116,3 +141,52 @@ def test_parse_headers_empty_buffer(
     """
     with pytest.raises(EmptyBuffer):
         parse_headers(io.BytesIO(frame))
+
+
+@pytest.mark.parametrize(
+    ["encoding", "frame"],
+    [
+        # The header is missing a name and the value.  This case is intended to
+        # demonstrate https://github.com/coilmq/coilmq/issues/103.
+        (
+            "stomp1.0",
+            b"SEND\n:\n\n\x00",
+        ),
+        (
+            "stomp1.1",
+            b"SEND\n:\n\n\x00",
+        ),
+        (
+            "stomp1.2",
+            b"SEND\n:\n\n\x00",
+        ),
+        # The header is missing a colon and the value.  This case is intended to
+        # demonstrate https://github.com/coilmq/coilmq/issues/103.
+        (
+            "stomp1.0",
+            b"SEND\ndestination\n\n\x00",
+        ),
+        (
+            "stomp1.1",
+            b"SEND\ndestination\n\n\x00",
+        ),
+        (
+            "stomp1.2",
+            b"SEND\ndestination\n\n\x00",
+        ),
+        # The header is missing the value.  This case is intended to demonstrate
+        # https://github.com/coilmq/coilmq/issues/103.
+        (
+            "stomp1.0",
+            b"SEND\ndestination:\n\n\x00",
+        ),
+    ],
+)
+def test_parse_headers_malformed_header(encoding: str, frame: bytes) -> None:
+    """Verify that `parse_headers` raises `ProtocolError` for malformed headers.
+
+    :param encoding: the name of the header encoding
+    :param frame: the frame to parse
+    """
+    with pytest.raises(ProtocolError, match="malformed header"):
+        parse_headers(io.BytesIO(frame), encoding)

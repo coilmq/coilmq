@@ -6,6 +6,8 @@ import re
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Any
 
+from coilmq.exception import ProtocolError
+
 if TYPE_CHECKING:
     from typing_extensions import Self
 
@@ -86,7 +88,11 @@ def parse_headers(
         if not header:
             break
 
-        name, value = (part.decode(encoding) for part in header.split(b":"))
+        name, sep, value = (part.decode(encoding) for part in header.partition(b":"))
+        if not name or not sep or (encoding == "stomp1.0" and not value):
+            msg = "malformed header"
+            raise ProtocolError(msg)
+
         headers[name] = value
 
     return command, headers
