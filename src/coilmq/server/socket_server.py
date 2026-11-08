@@ -66,6 +66,7 @@ class StompRequestHandler(BaseRequestHandler, StompConnection):
         self.log = logging.getLogger(f"{self.__module__}.{self.__class__.__name__}")
         self.buffer = FrameBuffer()
         self.last_data = datetime.min
+        self.encoding: str | None = None
 
     def handle(self) -> None:
         """Handle a new socket connection."""
@@ -93,6 +94,8 @@ class StompRequestHandler(BaseRequestHandler, StompConnection):
             topic_manager=self.server.topic_manager,
             protocol=protocol_class,
         )
+
+        self.encoding = engine.protocol.encoding
 
         # Process frames forever, starting with the first frame acquired above.
         try:
@@ -131,10 +134,9 @@ class StompRequestHandler(BaseRequestHandler, StompConnection):
     def send_frame(self, frame: Frame) -> None:
         """Sends a frame to connected socket client.
 
-        @param frame: The frame to send.
-        @type frame: coilmq.util.frames.Frame
+        :param frame: The frame to send.
         """
-        packed = frame.pack()
+        packed = frame.pack(self.encoding)
         if self.debug:  # pragma: no cover
             self.log.debug("SEND: %r", packed)
         self.request.sendall(packed)

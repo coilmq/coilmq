@@ -31,7 +31,7 @@ class TestTopicManager:
         dest = "/topic/dest"
 
         tm.subscribe(conn, dest)
-        f = Frame(frames.MESSAGE, headers={"destination": dest}, body="Empty")
+        f = Frame(frames.MESSAGE, headers={"destination": dest}, body=b"Empty")
         tm.send(f)
 
         assert len(conn.frames) == 1
@@ -47,7 +47,7 @@ class TestTopicManager:
         dest = "/topic/dest"
 
         tm.subscribe(conn, dest)
-        f = Frame(frames.MESSAGE, headers={"destination": dest}, body="Empty")
+        f = Frame(frames.MESSAGE, headers={"destination": dest}, body=b"Empty")
         tm.send(f)
 
         assert len(conn.frames) == 1
@@ -56,7 +56,7 @@ class TestTopicManager:
         assert conn.frames[0] == f
 
         tm.unsubscribe(conn, dest)
-        f = Frame(frames.MESSAGE, headers={"destination": dest}, body="Empty")
+        f = Frame(frames.MESSAGE, headers={"destination": dest}, body=b"Empty")
         tm.send(f)
 
         assert len(conn.frames) == 1
@@ -67,7 +67,7 @@ class TestTopicManager:
 
         dest = "/topic/dest"
 
-        f = Frame(frames.SEND, headers={"destination": dest}, body="Empty")
+        f = Frame(frames.SEND, headers={"destination": dest}, body=b"Empty")
         tm.send(f)
 
         # Assert some side-effects
@@ -95,7 +95,7 @@ class TestTopicManager:
         tm.subscribe(bad_client, dest)
         tm.subscribe(conn, dest)
 
-        f = Frame(frames.MESSAGE, headers={"destination": dest}, body="Empty")
+        f = Frame(frames.MESSAGE, headers={"destination": dest}, body=b"Empty")
         tm.send(f)
 
         # Make sure out good client got the message.

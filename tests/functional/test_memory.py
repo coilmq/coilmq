@@ -139,7 +139,7 @@ class TestServerWithDefaultClasses:
         frame = c1.received_frames.get(timeout=0.5)
         assert frame.cmd == frames.CONNECTED
 
-        c1.send("/topic/foo", "A message", extra_headers={"receipt": "FOOBAR"})
+        c1.send("/topic/foo", b"A message", extra_headers={"receipt": "FOOBAR"})
         frame = c1.received_frames.get(timeout=0.5)
         assert frame.cmd == frames.RECEIPT
 
@@ -156,7 +156,7 @@ class TestServerWithDefaultClasses:
 
         c2.subscribe("/queue/foo2")
 
-        c2.send("/queue/foo", "A message")
+        c2.send("/queue/foo", b"A message")
         assert c2.received_frames.qsize() == 0
 
         frame = c1.received_frames.get(timeout=0.5)

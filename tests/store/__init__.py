@@ -33,7 +33,7 @@ class BaseQueueTests:
         """Test the enqueue() method."""
         dest = "/queue/foo"
         frame = Frame(
-            frames.MESSAGE, headers={"message-id": str(uuid.uuid4())}, body="some data"
+            frames.MESSAGE, headers={"message-id": str(uuid.uuid4())}, body=b"some data"
         )
         store.enqueue(dest, frame)
 
@@ -44,7 +44,7 @@ class BaseQueueTests:
         """Test the dequeue() method."""
         dest = "/queue/foo"
         frame = Frame(
-            frames.MESSAGE, headers={"message-id": str(uuid.uuid4())}, body="some data"
+            frames.MESSAGE, headers={"message-id": str(uuid.uuid4())}, body=b"some data"
         )
         store.enqueue(dest, frame)
 
@@ -66,17 +66,17 @@ class BaseQueueTests:
         notdest = "/queue/other"
 
         frame1 = Frame(
-            frames.MESSAGE, headers={"message-id": str(uuid.uuid4())}, body="message-1"
+            frames.MESSAGE, headers={"message-id": str(uuid.uuid4())}, body=b"message-1"
         )
         store.enqueue(dest, frame1)
 
         frame2 = Frame(
-            frames.MESSAGE, headers={"message-id": str(uuid.uuid4())}, body="message-2"
+            frames.MESSAGE, headers={"message-id": str(uuid.uuid4())}, body=b"message-2"
         )
         store.enqueue(notdest, frame2)
 
         frame3 = Frame(
-            frames.MESSAGE, headers={"message-id": str(uuid.uuid4())}, body="message-3"
+            frames.MESSAGE, headers={"message-id": str(uuid.uuid4())}, body=b"message-3"
         )
         store.enqueue(dest, frame3)
 
@@ -97,17 +97,17 @@ class BaseQueueTests:
         dest = "/queue/foo"
 
         frame1 = Frame(
-            frames.MESSAGE, headers={"message-id": str(uuid.uuid4())}, body="message-1"
+            frames.MESSAGE, headers={"message-id": str(uuid.uuid4())}, body=b"message-1"
         )
         store.enqueue(dest, frame1)
 
         frame2 = Frame(
-            frames.MESSAGE, headers={"message-id": str(uuid.uuid4())}, body="message-2"
+            frames.MESSAGE, headers={"message-id": str(uuid.uuid4())}, body=b"message-2"
         )
         store.enqueue(dest, frame2)
 
         frame3 = Frame(
-            frames.MESSAGE, headers={"message-id": str(uuid.uuid4())}, body="message-3"
+            frames.MESSAGE, headers={"message-id": str(uuid.uuid4())}, body=b"message-3"
         )
         store.enqueue(dest, frame3)
 

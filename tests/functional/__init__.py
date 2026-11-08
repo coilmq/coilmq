@@ -43,6 +43,15 @@ class Client:
     received_frames: Final[Queue[Frame]]
     """Frames received by this client."""
 
+    @property
+    def _encoding(self) -> str | None:
+        return self.__encoding
+
+    @_encoding.setter
+    def _encoding(self, value: str | None) -> None:
+        self.log.info("setting client encoding; old=%s, new=%s", self.__encoding, value)
+        self.__encoding = value
+
     def __init__(self, addr: tuple[str, int]) -> None:
         self.log = logging.getLogger(f"{self.__module__}.{self.__class__.__name__}")
 
@@ -52,6 +61,7 @@ class Client:
         self._rsock, self._ssock = socket.socketpair()
         self._stopping = Event()
         self._sending: Queue[Frame] = Queue()
+        self.__encoding: str = "stomp1.0"
         self._thread = Thread(
             target=self._thread_func,
             name=f"client-receiver-{hex(id(self))}",
@@ -75,7 +85,7 @@ class Client:
     def send(
         self,
         destination: str,
-        body: str,
+        body: bytes,
         set_content_length: bool = True,
         extra_headers: dict[str, str] | None = None,
     ):
@@ -118,6 +128,14 @@ class Client:
                         frame_buffer.append(data)
                         for frame in frame_buffer:
                             self.log.debug("Processing frame: %s", frame)
+
+                            if frame.cmd == frames.CONNECTED:
+                                self._encoding = {
+                                    "1.0": "stomp1.0",
+                                    "1.1": "stomp1.1",
+                                    "1.2": "stomp1.2",
+                                }.get(frame.headers.get("version"), "stomp1.0")
+
                             self.received_frames.put_nowait(frame)
 
                     if event.fileobj is self._ssock:
@@ -126,7 +144,7 @@ class Client:
                         except Empty:
                             pass
                         else:
-                            server.sendall(frame.pack())
+                            server.sendall(frame.pack(self._encoding))
                         finally:
                             self._ssock.recv(1)
 

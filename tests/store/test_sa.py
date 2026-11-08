@@ -47,13 +47,19 @@ class TestSAQueue(BaseQueueTests):
         """Test the order that frames are returned by dequeue() method."""
         dest = "/queue/foo"
 
-        frame1 = Frame(frames.MESSAGE, headers={"message-id": "id-1"}, body="message-1")
+        frame1 = Frame(
+            frames.MESSAGE, headers={"message-id": "id-1"}, body=b"message-1"
+        )
         store.enqueue(dest, frame1)
 
-        frame2 = Frame(frames.MESSAGE, headers={"message-id": "id-2"}, body="message-2")
+        frame2 = Frame(
+            frames.MESSAGE, headers={"message-id": "id-2"}, body=b"message-2"
+        )
         store.enqueue(dest, frame2)
 
-        frame3 = Frame(frames.MESSAGE, headers={"message-id": "id-3"}, body="message-3")
+        frame3 = Frame(
+            frames.MESSAGE, headers={"message-id": "id-3"}, body=b"message-3"
+        )
         store.enqueue(dest, frame3)
 
         assert store.has_frames(dest)

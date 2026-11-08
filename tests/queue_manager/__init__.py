@@ -36,7 +36,7 @@ class QueueManagerTests:
 
     def test_frames_iterator(self, store: QueueStore, queue_manager: QueueManager):
         dest = "/queue/dest"
-        f = Frame(frames.SEND, headers={"destination": dest}, body="Empty")
+        f = Frame(frames.SEND, headers={"destination": dest}, body=b"Empty")
         queue_manager.send(f)
 
         assert bool(store.frames(dest))
@@ -46,7 +46,7 @@ class QueueManagerTests:
         dest = "/queue/dest"
 
         queue_manager.subscribe(conn, dest)
-        f = Frame(frames.MESSAGE, headers={"destination": dest}, body="Empty")
+        f = Frame(frames.MESSAGE, headers={"destination": dest}, body=b"Empty")
         queue_manager.send(f)
 
         assert len(conn.frames) == 1
@@ -59,14 +59,14 @@ class QueueManagerTests:
         dest = "/queue/dest"
 
         queue_manager.subscribe(conn, dest)
-        f = Frame(frames.MESSAGE, headers={"destination": dest}, body="Empty")
+        f = Frame(frames.MESSAGE, headers={"destination": dest}, body=b"Empty")
         queue_manager.send(f)
 
         assert len(conn.frames) == 1
         assert conn.frames[0] == f
 
         queue_manager.unsubscribe(conn, dest)
-        f = Frame(frames.MESSAGE, headers={"destination": dest}, body="Empty")
+        f = Frame(frames.MESSAGE, headers={"destination": dest}, body=b"Empty")
         queue_manager.send(f)
 
         assert len(conn.frames) == 1
@@ -76,7 +76,7 @@ class QueueManagerTests:
         """Test a basic send command."""
         dest = "/queue/dest"
 
-        f = Frame(frames.SEND, headers={"destination": dest}, body="Empty")
+        f = Frame(frames.SEND, headers={"destination": dest}, body=b"Empty")
         queue_manager.send(f)
 
         assert dest in store.destinations()
@@ -101,7 +101,7 @@ class QueueManagerTests:
         conn = ExcThrowingConn()
         queue_manager.subscribe(conn, dest)
 
-        f = Frame(frames.SEND, headers={"destination": dest}, body="Empty")
+        f = Frame(frames.SEND, headers={"destination": dest}, body=b"Empty")
         with pytest.raises(RuntimeError, match=re.escape("Error sending data.")):
             queue_manager.send(f)
 
@@ -118,7 +118,7 @@ class QueueManagerTests:
 
         dest = "/queue/send-backlog-err-reliable"
 
-        f = Frame(frames.SEND, headers={"destination": dest}, body="Empty")
+        f = Frame(frames.SEND, headers={"destination": dest}, body=b"Empty")
         queue_manager.send(f)
 
         econn = ExcThrowingConn()
@@ -148,10 +148,10 @@ class QueueManagerTests:
 
         dest = "/queue/dest"
 
-        f = Frame(frames.SEND, headers={"destination": dest}, body="123")
+        f = Frame(frames.SEND, headers={"destination": dest}, body=b"123")
         queue_manager.send(f)
 
-        f2 = Frame(frames.SEND, headers={"destination": dest}, body="12345")
+        f2 = Frame(frames.SEND, headers={"destination": dest}, body=b"12345")
         queue_manager.send(f2)
 
         econn = ExcThrowingConn()
@@ -189,7 +189,7 @@ class QueueManagerTests:
         f = Frame(
             frames.MESSAGE,
             headers={"destination": dest, "message-id": uuid.uuid4()},
-            body="Empty",
+            body=b"Empty",
         )
         queue_manager.send(f)
 
@@ -205,7 +205,7 @@ class QueueManagerTests:
         f = Frame(
             frames.SEND,
             headers={"destination": dest, "transaction": "1"},
-            body="Body-A",
+            body=b"Body-A",
         )
         queue_manager.send(f)
 
@@ -228,14 +228,14 @@ class QueueManagerTests:
         queue_manager.subscribe(conn1, dest)
 
         m1 = Frame(
-            frames.MESSAGE, headers={"destination": dest}, body="Message body (1)"
+            frames.MESSAGE, headers={"destination": dest}, body=b"Message body (1)"
         )
         queue_manager.send(m1)
 
         assert conn1.frames[0] == m1
 
         m2 = Frame(
-            frames.MESSAGE, headers={"destination": dest}, body="Message body (2)"
+            frames.MESSAGE, headers={"destination": dest}, body=b"Message body (2)"
         )
         queue_manager.send(m2)
 
@@ -266,14 +266,14 @@ class QueueManagerTests:
             headers={
                 "destination": dest,
             },
-            body="Message body (1)",
+            body=b"Message body (1)",
         )
         queue_manager.send(m1)
 
         assert conn1.frames[0] == m1
 
         m2 = Frame(
-            frames.MESSAGE, headers={"destination": dest}, body="Message body (2)"
+            frames.MESSAGE, headers={"destination": dest}, body=b"Message body (2)"
         )
         queue_manager.send(m2)
 
@@ -322,7 +322,7 @@ class QueueManagerTests:
         queue_manager.subscribe(conn1, dest)
 
         m1 = Frame(
-            frames.MESSAGE, headers={"destination": dest}, body="Message body (1)"
+            frames.MESSAGE, headers={"destination": dest}, body=b"Message body (1)"
         )
         queue_manager.send(m1)
 

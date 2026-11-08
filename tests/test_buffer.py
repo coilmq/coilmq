@@ -37,7 +37,9 @@ class TestFrameBuffer:
     def test_extract_frame(self) -> None:
         """Test extracting a single frame."""
         sb = FrameBuffer()
-        m1 = Frame(frames.CONNECT, {"session": uuid.uuid4()}, "This is the body").pack()
+        m1 = Frame(
+            frames.CONNECT, {"session": uuid.uuid4()}, b"This is the body"
+        ).pack()
         sb.append(m1)
         msg = sb.extract_frame()
         assert isinstance(msg, Frame)
@@ -46,7 +48,7 @@ class TestFrameBuffer:
     def test_extract_frame_binary(self) -> None:
         """Test extracting a binary frame."""
         sb = FrameBuffer()
-        binmsg = "\x00\x00HELLO\x00\x00DONKEY\x00\x00"
+        binmsg = b"\x00\x00HELLO\x00\x00DONKEY\x00\x00"
         m1 = Frame(
             frames.SEND,
             OrderedDict({"content-length": len(binmsg), "x-other-header": "value"}),
@@ -77,10 +79,10 @@ class TestFrameBuffer:
         f3 = sb.extract_frame()
 
         assert f2.cmd == frames.SUBSCRIBE
-        assert f2.body == ""
+        assert f2.body == b""
         assert f3.cmd == frames.SEND
         assert f3.headers.get("destination") == "/queue/test"
-        assert f3.body == ""
+        assert f3.body == b""
 
         assert sb.extract_frame() is None
 
@@ -140,11 +142,11 @@ class TestFrame:
         Frame.from_buffer(buff)
 
     def test_pack(self) -> None:
-        frame = Frame(frames.CONNECT, OrderedDict(foo="bar"), "body")
+        frame = Frame(frames.CONNECT, OrderedDict(foo="bar"), b"body")
         assert frame.pack() == b"CONNECT\nfoo:bar\ncontent-length:4\n\nbody\x00"
 
     def test_pack_binary(self) -> None:
-        bin_body = "\x00\x00HELLO\x00\x00DONKEY\x00\x00"
+        bin_body = b"\x00\x00HELLO\x00\x00DONKEY\x00\x00"
         frame = Frame(frames.CONNECT, body=bin_body)
         assert (
             frame.pack()
