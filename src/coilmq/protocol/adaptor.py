@@ -97,7 +97,7 @@ class STOMP10(STOMP):
         except Exception as e:
             self.engine.log.exception("Error processing STOMP frame")
             try:
-                self.engine.connection.send_frame(ErrorFrame(str(e), str(e)))
+                self.engine.connection.send_frame(ErrorFrame(str(e), str(e).encode()))
             except Exception:  # pragma: no cover
                 self.engine.log.exception("Could not send error frame")
         else:

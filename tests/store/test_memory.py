@@ -34,7 +34,7 @@ class TestMemoryQueue(BaseQueueTests):
         """Test the dequeue() method."""
         dest = "/queue/foo"
         frame = Frame(
-            frames.MESSAGE, headers={"message-id": str(uuid.uuid4())}, body="some data"
+            frames.MESSAGE, headers={"message-id": str(uuid.uuid4())}, body=b"some data"
         )
         store.enqueue(dest, frame)
 

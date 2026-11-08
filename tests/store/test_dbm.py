@@ -45,7 +45,7 @@ class TestDbmQueue(BaseQueueTests):
         """Test the dequeue() method."""
         dest = "/queue/foo"
         frame = Frame(
-            frames.MESSAGE, headers={"message-id": str(uuid.uuid4())}, body="some data"
+            frames.MESSAGE, headers={"message-id": str(uuid.uuid4())}, body=b"some data"
         )
         store.enqueue(dest, frame)
 
@@ -70,7 +70,7 @@ class TestDbmQueue(BaseQueueTests):
                 frame = Frame(
                     frames.MESSAGE,
                     headers={"message-id": str(uuid.uuid4())},
-                    body=f"some data - {i}",
+                    body=f"some data - {i}".encode(),
                 )
                 store.enqueue(dest, frame)
 
@@ -90,7 +90,7 @@ class TestDbmQueue(BaseQueueTests):
             frame = Frame(
                 frames.MESSAGE,
                 headers={"message-id": str(uuid.uuid4())},
-                body="some data -1",
+                body=b"some data -1",
             )
             store.enqueue(dest, frame)
 
@@ -99,7 +99,7 @@ class TestDbmQueue(BaseQueueTests):
             frame = Frame(
                 frames.MESSAGE,
                 headers={"message-id": str(uuid.uuid4())},
-                body="some data -2",
+                body=b"some data -2",
             )
             store.enqueue(dest, frame)
 
@@ -117,7 +117,7 @@ class TestDbmQueue(BaseQueueTests):
             frame = Frame(
                 frames.MESSAGE,
                 headers={"message-id": str(uuid.uuid4())},
-                body="some data",
+                body=b"some data",
             )
             store.enqueue(dest, frame)
             assert store.size(dest) == 1
@@ -132,7 +132,7 @@ class TestDbmQueue(BaseQueueTests):
         frame = Frame(
             frames.MESSAGE,
             headers={"message-id": str(uuid.uuid4())},
-            body="some data",
+            body=b"some data",
         )
         store.enqueue(dest, frame)
         assert store.size(dest) == 1

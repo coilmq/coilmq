@@ -5,6 +5,7 @@ import logging
 import re
 from collections import OrderedDict
 from itertools import starmap
+from typing import Any
 
 SEND = "SEND"
 CONNECT = "CONNECT"
@@ -116,13 +117,18 @@ class Frame:
     :param body: the content of the frame.
     """
 
-    def __init__(self, cmd, headers=None, body=None):
+    def __init__(
+        self,
+        cmd: str,
+        headers: dict[str, Any] | None = None,
+        body: bytes | None = None,
+    ) -> None:
         self.cmd = cmd
         self.headers = headers or {}
-        self.body = body or ""
+        self.body = body or b""
 
-    def __str__(self):
-        return f"{{cmd={self.cmd},headers=[{self.headers}],body={self.body if isinstance(self.body, bytes) else self.body.encode()}}}"
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({{cmd={self.cmd!r}, headers=[{self.headers!r}], body={self.body!r}}})"
 
     def __eq__(self, other):
         """Override equality checking to test for matching command, headers, and body."""
@@ -164,7 +170,7 @@ class Frame:
             b"\n"
             +
             # *OCTET
-            (self.body if isinstance(self.body, bytes) else self.body.encode())
+            self.body
             +
             # NULL
             b"\x00"
@@ -178,11 +184,15 @@ class ConnectedFrame(Frame):
     @type session: str
     """
 
-    def __init__(self, session, extra_headers=None):
+    def __init__(
+        self,
+        session: str,
+        extra_headers: dict[str, Any] | None = None,
+    ) -> None:
         """:param session: The (throw-away) session ID to include in response.
         :type session: str
         """
-        super().__init__(cmd=CONNECTED, headers=extra_headers or {})
+        super().__init__(cmd=CONNECTED, headers=extra_headers)
         self.headers["session"] = session
 
 
@@ -227,11 +237,16 @@ class HeaderValue:
 class ErrorFrame(Frame):
     """An ERROR server frame."""
 
-    def __init__(self, message, body=None, extra_headers=None):
+    def __init__(
+        self,
+        message: str,
+        body: bytes | None = None,
+        extra_headers: dict[str, Any] | None = None,
+    ) -> None:
         """:param body: The message body bytes.
         :type body: str
         """
-        super().__init__(cmd=ERROR, headers=extra_headers or {}, body=body)
+        super().__init__(cmd=ERROR, headers=extra_headers, body=body)
         self.headers["message"] = message
         self.headers["content-length"] = HeaderValue(calculator=lambda: len(self.body))
 
@@ -242,11 +257,15 @@ class ErrorFrame(Frame):
 class ReceiptFrame(Frame):
     """A RECEIPT server frame."""
 
-    def __init__(self, receipt, extra_headers=None):
+    def __init__(
+        self,
+        receipt: str,
+        extra_headers: dict[str, Any] | None = None,
+    ) -> None:
         """:param receipt: The receipt message ID.
         :type receipt: str
         """
-        super().__init__(RECEIPT, headers=extra_headers or {})
+        super().__init__(RECEIPT, headers=extra_headers)
         self.headers["receipt-id"] = receipt
 
 

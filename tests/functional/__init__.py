@@ -75,7 +75,7 @@ class Client:
     def send(
         self,
         destination: str,
-        body: str,
+        body: bytes,
         set_content_length: bool = True,
         extra_headers: dict[str, str] | None = None,
     ):

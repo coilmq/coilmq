@@ -105,18 +105,18 @@ class TestEngine:
         engine.process_frame(Frame(frames.CONNECT))
 
         msg = Frame(
-            frames.SEND, headers={"destination": "/queue/foo"}, body="QUEUEMSG-BODY"
+            frames.SEND, headers={"destination": "/queue/foo"}, body=b"QUEUEMSG-BODY"
         )
         engine.process_frame(msg)
         assert msg == engine.queue_manager.messages[-1]
 
         msg = Frame(
-            frames.SEND, headers={"destination": "/topic/foo"}, body="TOPICMSG-BODY"
+            frames.SEND, headers={"destination": "/topic/foo"}, body=b"TOPICMSG-BODY"
         )
         engine.process_frame(msg)
         assert msg == engine.topic_manager.messages[-1]
 
-        msg = Frame(frames.SEND, headers={}, body="TOPICMSG-BODY")
+        msg = Frame(frames.SEND, headers={}, body=b"TOPICMSG-BODY")
         engine.process_frame(msg)
         assertErrorFrame(engine.connection.frames[-1], "Missing destination")
 
@@ -128,7 +128,7 @@ class TestEngine:
         msg = Frame(
             frames.SEND,
             headers={"destination": "/queue/foo", "receipt": receipt_id},
-            body="QUEUEMSG-BODY",
+            body=b"QUEUEMSG-BODY",
         )
         engine.process_frame(msg)
         rframe = engine.connection.frames[-1]
@@ -192,21 +192,21 @@ class TestEngine:
             Frame(
                 frames.SEND,
                 headers={"destination": "/dest", "transaction": "abc"},
-                body="ASDF",
+                body=b"ASDF",
             )
         )
         engine.process_frame(
             Frame(
                 frames.SEND,
                 headers={"destination": "/dest", "transaction": "abc"},
-                body="ASDF",
+                body=b"ASDF",
             )
         )
         engine.process_frame(
             Frame(
                 frames.SEND,
                 headers={"destination": "/dest", "transaction": "123"},
-                body="ASDF",
+                body=b"ASDF",
             )
         )
 
@@ -231,7 +231,7 @@ class TestEngine:
         f = Frame(
             frames.SEND,
             headers={"destination": "/dest", "transaction": "123"},
-            body="ASDF",
+            body=b"ASDF",
         )
         engine.process_frame(f)
         assertErrorFrame(engine.connection.frames[-1], "invalid transaction")
@@ -245,7 +245,7 @@ class TestEngine:
             Frame(
                 frames.SEND,
                 headers={"destination": "/dest", "transaction": "abc"},
-                body="FOO",
+                body=b"FOO",
             )
         )
         engine.process_frame(Frame(frames.COMMIT, headers={"transaction": "abc"}))
@@ -263,19 +263,19 @@ class TestEngine:
         f1 = Frame(
             frames.SEND,
             headers={"destination": "/dest", "transaction": "abc"},
-            body="ASDF",
+            body=b"ASDF",
         )
         engine.process_frame(f1)
         f2 = Frame(
             frames.SEND,
             headers={"destination": "/dest", "transaction": "abc"},
-            body="ASDF",
+            body=b"ASDF",
         )
         engine.process_frame(f2)
         f3 = Frame(
             frames.SEND,
             headers={"destination": "/dest", "transaction": "123"},
-            body="ASDF",
+            body=b"ASDF",
         )
         engine.process_frame(f3)
 
