@@ -32,6 +32,8 @@ Unreleased
 **Fixed**
 
 - CoilMQ does not preserve significant whitespace in headers (:issue:`99`)
+- CoilMQ does not escape frame delimiting characters (:issue:`100`)
+- CoilMQ uses the wrong text codec for STOMP 1.0 frames (:issues:`106`)
 
 **Security**
 
