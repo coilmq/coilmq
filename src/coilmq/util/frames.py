@@ -4,8 +4,11 @@ import io
 import logging
 import re
 from collections import OrderedDict
-from itertools import starmap
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from typing_extensions import Self
+
 
 SEND = "SEND"
 CONNECT = "CONNECT"
@@ -55,29 +58,35 @@ class EmptyBuffer(Exception):
     """The buffer is empty."""
 
 
-def parse_headers(buff: io.BytesIO) -> tuple[str, OrderedDict[str, str]]:
+def parse_headers(
+    buff: io.BytesIO, encoding: str | None = None
+) -> tuple[str, OrderedDict[str, str]]:
     """Parses buffer and returns command and headers as strings.
 
     :param buff: The buffer from which to extract the command and headers
+    :param encoding: The name of the encoding to use; if `None`, use `"stomp1.0"`.
     :returns: The command name and headers
     :raises EmptyBuffer: if the buffer does not contain at least a command name.
 
     """
+    if encoding is None:
+        encoding = "stomp1.0"
+
     line = buff.readline()
-    trim: int = 1
-    command = line[:-trim].decode()
+    trim: int = 2 if encoding == "stomp1.2" and line.endswith(b"\r\n") else 1
+    command = line[:-trim].decode(encoding)
     if not command:
         raise EmptyBuffer()
 
     headers = OrderedDict()
 
     for line in iter(buff):
-        trim = 1
+        trim = 2 if encoding == "stomp1.2" and line.endswith(b"\r\n") else 1
         header = line[:-trim]
         if not header:
             break
 
-        name, value = (part.decode() for part in header.split(b":"))
+        name, value = (part.decode(encoding) for part in header.split(b":"))
         headers[name] = value
 
     return command, headers
@@ -144,37 +153,52 @@ class Frame:
         return self.headers.get("transaction")
 
     @classmethod
-    def from_buffer(cls, buff):
-        cmd, headers = parse_headers(buff)
+    def from_buffer(cls, buff, encoding: str | None = None) -> Self:
+        """Construct a `Frame` from the contents of ``buff``.
+
+        :param buff: The buffer from which to read
+        :param encoding: The name of the header encoding; if `None`, use `"stomp1.0"`
+        :returns: a `Frame` instance
+
+        """
+        cmd, headers = parse_headers(buff, encoding)
         body = parse_body(buff, headers)
         return cls(cmd, headers=headers, body=body)
 
-    def pack(self):
-        """Create a string representation from object state.
+    def pack(self, encoding: str | None = None) -> bytes:
+        """Create a binary representation from object state.
 
-        :returns: The string (bytes) for this stomp frame.
-        :rtype: str
+        :param encoding: The name of the header encoding; if `None`, use `"stomp1.0"`.
+        :returns: The binary representation of this frame.
+
         """
-        self.headers.setdefault("content-length", len(self.body))
+        if encoding is None:
+            encoding = "stomp1.0"
 
-        # See https://stomp.github.io/stomp-specification-1.1.html#Augmented_BNF
-        return (
-            # command LF
-            self.cmd.encode()
-            + b"\n"
-            +
-            # *( header LF )
-            "".join(starmap("{0}:{1}\n".format, self.headers.items())).encode()
-            +
-            # LF
-            b"\n"
-            +
+        self.headers.setdefault("content-length", str(len(self.body)))
+
+        # See https://stomp.github.io/stomp-specification-1.2.html#Augmented_BNF
+        return b"".join((
+            # command EOL
+            self.cmd.encode(encoding),
+            b"\n",
+            # *( header EOL )
+            *(
+                b"".join((
+                    name.encode(encoding),
+                    b":",
+                    str(value).encode(encoding),
+                    b"\n",
+                ))
+                for name, value in self.headers.items()
+            ),
+            # EOL
+            b"\n",
             # *OCTET
-            self.body
-            +
+            self.body,
             # NULL
-            b"\x00"
-        )
+            b"\x00",
+        ))
 
 
 class ConnectedFrame(Frame):

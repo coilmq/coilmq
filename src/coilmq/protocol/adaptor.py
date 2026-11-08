@@ -19,6 +19,11 @@ if TYPE_CHECKING:
 
 
 class STOMP(abc.ABC):
+    @property
+    @abc.abstractmethod
+    def encoding(self) -> str:
+        """Return the name of the header encoding."""
+
     def __init__(self, engine: StompEngine, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.engine = engine
@@ -72,6 +77,10 @@ class STOMP(abc.ABC):
 
 
 class STOMP10(STOMP):
+    @property
+    def encoding(self) -> str:
+        return "stomp1.0"
+
     def process_frame(self, frame):
         """Dispatches a received frame to the appropriate internal method.
 
@@ -236,6 +245,10 @@ class STOMP10(STOMP):
 
 
 class STOMP11(STOMP10):
+    @property
+    def encoding(self) -> str:
+        return "stomp1.1"
+
     def __init__(
         self,
         engine: StompEngine,
@@ -342,6 +355,10 @@ class STOMP11(STOMP10):
 
 
 class STOMP12(STOMP11):
+    @property
+    def encoding(self) -> str:
+        return "stomp1.2"
+
     def connect(self, frame: Frame, response: ConnectedFrame | None = None) -> None:
         host = frame.headers.get("host")
         if not host:

@@ -4,7 +4,13 @@ CoilMQ is designed for the Python StompServer reference socket server (specifica
 multi-threaded); however, some alternative implementation examples are also provided.
 """
 
+from __future__ import annotations
+
 import abc
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from coilmq.util.frames import Frame
 
 __authors__ = ['"Hans Lellelid" <hans@xmpl.org>']
 __license__ = """Licensed under the Apache License, Version 2.0 (the "License");
@@ -33,9 +39,8 @@ class StompConnection(abc.ABC):
     reliable_subscriber = False
 
     @abc.abstractmethod
-    def send_frame(self, frame):
-        """Uses this connection implementation to send the specified frame to a connected client.
+    def send_frame(self, frame: Frame) -> None:
+        """Send the frame to the client associated with this connection.
 
         :param frame: The STOMP frame to send.
-        :type frame: coilmq.util.frames.Frame
         """

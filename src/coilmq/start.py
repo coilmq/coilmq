@@ -17,6 +17,7 @@ else:
 
 import click
 
+import coilmq.util.codec
 from coilmq.config import config as global_config
 from coilmq.config import init_config, init_logging, resolve_name
 from coilmq.queue import QueueManager
@@ -121,7 +122,7 @@ def context_serve(
     """
     server = None
     try:
-        with context:
+        with context, coilmq.util.codec.register():
             # There's a possibility here that init_logging() will throw an exception.  If it does,
             # AND we're in a daemon context, then we're not going to be able to do anything with it.
             # We've got no stderr/stdout here; and so (to my knowledge) no reliable (& cross-platform),
