@@ -39,8 +39,10 @@ limitations under the License."""
 
 #: The global configuration object containing the default configuration.
 config = ConfigParser()
-with as_file(files("coilmq.config").joinpath("defaults.cfg")) as filename:
-    config.read(filename)
+with as_file(
+    files("coilmq.config").joinpath("defaults.cfg")
+) as filename, filename.open() as src:
+    config.read_file(src)
 
 
 def init_config(config_file=None):
