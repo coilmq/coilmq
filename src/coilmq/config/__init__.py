@@ -16,6 +16,7 @@ import logging
 import logging.config
 import os.path
 from configparser import ConfigParser
+from typing import Final
 
 try:
     from importlib.resources import as_file, files
@@ -38,7 +39,7 @@ See the License for the specific language governing permissions and
 limitations under the License."""
 
 #: The global configuration object containing the default configuration.
-config = ConfigParser()
+config: Final[ConfigParser] = ConfigParser()
 with as_file(
     files("coilmq.config").joinpath("defaults.cfg")
 ) as filename, filename.open() as src:
