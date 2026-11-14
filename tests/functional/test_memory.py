@@ -115,24 +115,27 @@ class TestServerWithDefaultClasses:
     )
     def test_connect_auth(
         self,
-        server: ThreadedStompServer,
         c1: Client,
-        c2: Client,
-        c3: Client,
     ) -> None:
         """Test connecting when auth is required."""
         c1.connect()
         frame = c1.received_frames.get(timeout=0.5)
         assert frame.cmd == frames.ERROR
-        assert b"Auth" in frame.body
+        assert b"Authentication failed" in frame.body
 
-        c2.connect(headers={"login": "user", "passcode": "pass"})
-        frame = c2.received_frames.get(timeout=0.5)
-        assert frame.cmd == frames.CONNECTED
-
-        c3.connect(headers={"login": "user", "passcode": "pass-invalid"})
-        frame = c3.received_frames.get(timeout=0.5)
+        c1.connect(headers={"login": "user"})
+        frame = c1.received_frames.get(timeout=0.5)
         assert frame.cmd == frames.ERROR
+        assert b"Authentication failed" in frame.body
+
+        c1.connect(headers={"login": "user", "passcode": "pass-invalid"})
+        frame = c1.received_frames.get(timeout=0.5)
+        assert frame.cmd == frames.ERROR
+        assert b"Authentication failed" in frame.body
+
+        c1.connect(headers={"login": "user", "passcode": "pass"})
+        frame = c1.received_frames.get(timeout=0.5)
+        assert frame.cmd == frames.CONNECTED
 
     def test_send_receipt(self, c1: Client) -> None:
         c1.connect()
