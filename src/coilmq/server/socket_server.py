@@ -211,7 +211,7 @@ class StompServer(TCPServer):
         TCPServer.server_close(self)
         self.queue_manager.close()
         self.topic_manager.close()
-        if hasattr(self.authenticator, "close"):
+        if self.authenticator:
             self.authenticator.close()
 
     def shutdown(self):

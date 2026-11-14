@@ -43,3 +43,11 @@ class Authenticator(abc.ABC):
             otherwise `False`.
 
         """
+
+    def close(self) -> None:  # ruff: ignore[empty-method-without-abstract-decorator]
+        """Close the authenticator.
+
+        The default implementation of this method does nothing.  Subclasses may
+        override this method.
+
+        """
