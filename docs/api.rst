@@ -7,6 +7,11 @@ coilmq.auth
 .. automodule:: coilmq.auth
    :members:
 
+coilmq.auth.simple
+==================
+.. automodule:: coilmq.auth.simple
+   :members: make_simple
+
 coilmq.config
 =============
 .. automodule:: coilmq.config
