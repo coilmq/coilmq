@@ -1,7 +1,9 @@
 """A simple authenticator implementation."""
 
-from configparser import ConfigParser
+from __future__ import annotations
 
+from configparser import ConfigParser
+from typing import Final
 from coilmq.auth import Authenticator
 from coilmq.config import config
 from coilmq.exception import ConfigError
@@ -21,7 +23,7 @@ See the License for the specific language governing permissions and
 limitations under the License."""
 
 
-def make_simple():
+def make_simple() -> Authenticator:
     """Return an authenticator with login/passcode pairs loaded from a file.
 
     When a CoilMQ server's configuration file assigns this function to the
@@ -55,22 +57,14 @@ def make_simple():
 
 
 class SimpleAuthenticator(Authenticator):
-    """A simple configfile-based authenticator.
+    r"""A `dict`\ -backed authenticator.
 
-    :var store: Authentication key-value store (of logins to passwords).
-    :vartype store: dict[str, str]
+    :param store: each item is a login/passcode pair
+
     """
 
-    def __init__(self, store=None):
-        """Initialize the authenticator to use (optionally) specified :paramref:`store`.
-
-        :param store: Authentication store whose keys are user names and values are
-            passwords.
-        :type store: dict[str, str]
-        """
-        if store is None:
-            store = {}
-        self.store = store
+    def __init__(self, store: dict[str, str] | None = None) -> None:
+        self.store: Final[dict[str, str]] = store or {}
 
     def from_configfile(self, configfile):
         """Initialize the authentication store from a "config"-style file.
