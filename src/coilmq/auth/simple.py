@@ -1,4 +1,4 @@
-"""A simple config-file based authentication module."""
+"""A simple authenticator implementation."""
 
 from configparser import ConfigParser
 
@@ -22,11 +22,29 @@ limitations under the License."""
 
 
 def make_simple():
-    """Create a :class:`SimpleAuthenticator` instance using values read from coilmq configuration.
+    """Return an authenticator with login/passcode pairs loaded from a file.
 
-    :returns: The configured :class:`SimpleAuthenticator`
-    :rtype: SimpleAuthenticator
-    :raises ConfigError: If there is a configuration error.
+    When a CoilMQ server's configuration file assigns this function to the
+    ``auth.factory`` setting, this function creates the server's authenticator.
+    The same configuration file must also assign a path to the
+    ``auth.simple.file`` setting.  The path should refer to an INI file
+    containing login/passcode pairs.  This function reads the the login/passcode
+    pairs from the INI file's ``[auth]`` section.
+
+    The following INI file snippet would tell CoilMQ to call this function to
+    get an authenticator with login/passcode pairs loaded from
+    ``/path/to/auth.ini``::
+
+        [coilmq]
+        auth.factory = coilmq.auth.simple:make_simple
+        auth.simple.file = /path/to/auth.ini
+
+    :returns: An authenticator populated from the file referenced by CoilMQ's
+        global configuration.
+
+    :raises ConfigError: if the CoilMQ configuration file does not define
+        ``coilmq.auth.simple.file``.
+
     """
     authfile = config.get("coilmq", "auth.simple.file")
     if not authfile:
@@ -84,10 +102,5 @@ class SimpleAuthenticator(Authenticator):
 
         self.store = dict(cfg.items("auth"))
 
-    def authenticate(self, login, passcode):
-        """Authenticate the login and passcode.
-
-        :returns: Whether provided login and password match values in store.
-        :rtype: bool
-        """
+    def authenticate(self, login: str, passcode: str) -> bool:
         return login in self.store and self.store[login] == passcode

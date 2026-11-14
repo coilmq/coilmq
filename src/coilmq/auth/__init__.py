@@ -1,7 +1,14 @@
-"""Authentication providers.
+"""Authentication for STOMP over TCP.
 
-Because authentication providers are instantiated and configured in the application scope
-(and not in the request handler), the authenticator implementations must be thread-safe.
+The STOMP protocol specifies that a client may set ``login`` and ``passcode``
+headers in the ``CONNECT`` (or ``STOMP``) frame to authenticate with the server.
+CoilMQ provides an `Authenticator` abstract base class that defines the
+interface for classes that handle authentication using the STOMP protocol alone.
+
+Authentication providers are instantiated and configured in the application
+scope and shared across all request handlers.  Therefore, authenticator
+implementations must be thread-safe.
+
 """
 
 import abc
@@ -25,9 +32,14 @@ class Authenticator(abc.ABC):
     """Abstract base class for authenticators."""
 
     @abc.abstractmethod
-    def authenticate(self, login, passcode):
-        """Authenticate the login and passcode.
+    def authenticate(self, login: str, passcode: str) -> bool:
+        """Authenticate a ``CONNECT`` frame's ``login`` and ``passcode`` headers.
 
-        :returns: Whether user is authenticated.
-        :rtype: bool
+        :param login: The user identifier to authenticate.
+        :param passcode: The password to authenticate.
+
+        :returns: `True` if ``login`` is a known user identifier and
+            ``passcode`` matches the password associated with ``login``,
+            otherwise `False`.
+
         """
