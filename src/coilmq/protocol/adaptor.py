@@ -127,11 +127,12 @@ class STOMP10(STOMP):
         """Handle CONNECT command: Establishes a new connection and checks auth (if applicable)."""
         self.engine.log.debug("CONNECT")
 
-        if self.engine.authenticator:
-            login = frame.headers.get("login")
-            passcode = frame.headers.get("passcode")
-            if not self.engine.authenticator.authenticate(login, passcode):
-                raise AuthError(f"Authentication failed for {login}")
+        if self.engine.authenticator and (
+            (login := frame.headers.get("login")) is None
+            or (passcode := frame.headers.get("passcode")) is None
+            or not self.engine.authenticator.authenticate(str(login), str(passcode))
+        ):
+            raise AuthError(f"Authentication failed")
 
         self.engine.connected = True
 

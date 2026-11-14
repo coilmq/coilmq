@@ -1,12 +1,12 @@
 """Tests for authenticators."""
 
-import re
+from io import StringIO
+from pathlib import Path
 
 try:
     from importlib.resources import as_file, files
 except ImportError:  # pragma: no cover
     from importlib_resources import as_file, files
-from io import StringIO
 
 import pytest
 
@@ -35,43 +35,62 @@ class TestSimpleAuthenticator:
         assert auth.authenticate("user1", "pass") == False
         assert auth.authenticate("user", "pass2") == False
 
-    def test_from_configfile(self) -> None:
-        """Test the loading store from config file path."""
-        auth = SimpleAuthenticator()
+    def test_from_ini_path_str(self) -> None:
+        """Test loading store from a `str` path."""
         with as_file(files("tests.resources").joinpath("auth.ini")) as filename:
-            auth.from_configfile(filename)
+            auth = SimpleAuthenticator.from_ini(str(filename))
         assert auth.authenticate("juniper", "b3rr1es") == True
         assert auth.authenticate("oak", "ac$rrubrum") == True
         assert auth.authenticate("pinetree", "str0bus") == True
         assert auth.authenticate("foo", "bar") == False
 
-    def test_from_configfile_fp(self) -> None:
-        """Test loading store from file-like object."""
-        auth = SimpleAuthenticator()
+    def test_from_ini_path_bytes(self) -> None:
+        """Test loading store from a `bytes` path."""
+        with as_file(files("tests.resources").joinpath("auth.ini")) as filename:
+            auth = SimpleAuthenticator.from_ini(str(filename).encode())
+        assert auth.authenticate("juniper", "b3rr1es") == True
+        assert auth.authenticate("oak", "ac$rrubrum") == True
+        assert auth.authenticate("pinetree", "str0bus") == True
+        assert auth.authenticate("foo", "bar") == False
+
+    def test_from_ini_path_object(self) -> None:
+        """Test loading from a `Path`."""
+        with as_file(files("tests.resources").joinpath("auth.ini")) as filename:
+            auth = SimpleAuthenticator.from_ini(Path(filename))
+        assert auth.authenticate("juniper", "b3rr1es") == True
+        assert auth.authenticate("oak", "ac$rrubrum") == True
+        assert auth.authenticate("pinetree", "str0bus") == True
+        assert auth.authenticate("foo", "bar") == False
+
+    def test_from_ini_file(self) -> None:
+        """Test loading from a file-like object."""
         with as_file(
             files("tests.resources").joinpath("auth.ini")
         ) as filename, filename.open() as fp:
-            auth.from_configfile(fp)
+            auth = SimpleAuthenticator.from_ini(fp)
 
         assert auth.authenticate("juniper", "b3rr1es") == True
         assert auth.authenticate("oak", "ac$rrubrum") == True
         assert auth.authenticate("pinetree", "str0bus") == True
         assert auth.authenticate("foo", "bar") == False
 
-    def test_from_configfile_invalid(self) -> None:
-        """Test loading store with invalid file path."""
-        auth = SimpleAuthenticator()
+    def test_from_ini_non_existent_file(self) -> None:
+        """Test loading from path to a non-existent file."""
         with as_file(files("tests.resources").joinpath("auth-invalid.ini")) as filename:  # noqa: SIM117
             with pytest.raises(
-                ValueError, match=r"Could not parse auth file: .+?/auth-invalid\.ini"
+                FileNotFoundError,
+                match=r"\[Errno 2\] No such file or directory: '.*?auth-invalid\.ini'",
             ):
-                auth.from_configfile(filename)
+                SimpleAuthenticator.from_ini(filename)
 
-    def test_from_configfile_fp_invalid(self) -> None:
-        """Test loading store with missing section in config."""
-        fp = StringIO("[invalid]\nusername=password")
-        auth = SimpleAuthenticator()
-        with pytest.raises(
-            ValueError, match=re.escape("Config file contains no [auth] section.")
-        ):
-            auth.from_configfile(fp)
+    def test_from_ini_no_auth_section(self) -> None:
+        """Test loading from a source without an ``[auth]`` section."""
+        fp = StringIO("[something-else]\nusername=password")
+        with pytest.raises(ValueError, match=r"No \[auth\] section in file: '.*?'"):
+            SimpleAuthenticator.from_ini(fp)
+
+    def test_from_ini_not_an_ini(self) -> None:
+        """Test loading from a source without an ``[auth]`` section."""
+        fp = StringIO("Lorem ipsum dolor sit amet")
+        with pytest.raises(ValueError, match=r"Could not read file: '.*?'"):
+            SimpleAuthenticator.from_ini(fp)

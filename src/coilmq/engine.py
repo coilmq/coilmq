@@ -23,6 +23,7 @@ from collections import defaultdict
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from coilmq.auth import Authenticator
     from coilmq.protocol import STOMP
     from coilmq.util.frames import Frame
 
@@ -67,7 +68,7 @@ class StompEngine:
     def __init__(
         self,
         connection,
-        authenticator,
+        authenticator: Authenticator | None,
         queue_manager,
         topic_manager,
         protocol: type[STOMP],

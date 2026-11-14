@@ -73,7 +73,7 @@ class TestEngine:
         """Test the CONNECT command when auth is required."""
         assert engine.connected == False
         engine.process_frame(Frame(frames.CONNECT))
-        assertErrorFrame(engine.connection.frames[-1], "Auth")
+        assertErrorFrame(engine.connection.frames[-1], "Authentication failed")
         assert engine.connected == False
 
         engine.process_frame(

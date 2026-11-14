@@ -1,10 +1,18 @@
-"""A simple config-file based authentication module."""
+"""A simple authenticator implementation."""
 
-from configparser import ConfigParser
+from __future__ import annotations
+
+import os
+from configparser import ConfigParser, NoSectionError, ParsingError
+from typing import TYPE_CHECKING, Final, TextIO
 
 from coilmq.auth import Authenticator
 from coilmq.config import config
 from coilmq.exception import ConfigError
+
+if TYPE_CHECKING:
+    from typing_extensions import Self
+
 
 __authors__ = ['"Hans Lellelid" <hans@xmpl.org>']
 __copyright__ = "Copyright 2009 Hans Lellelid"
@@ -20,74 +28,94 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License."""
 
+__all__ = [
+    "SimpleAuthenticator",
+    "make_simple",
+]
 
-def make_simple():
-    """Create a :class:`SimpleAuthenticator` instance using values read from coilmq configuration.
 
-    :returns: The configured :class:`SimpleAuthenticator`
-    :rtype: SimpleAuthenticator
-    :raises ConfigError: If there is a configuration error.
+def make_simple() -> Authenticator:
+    """Return an authenticator with login/passcode pairs loaded from a file.
+
+    When a CoilMQ server's configuration file assigns this function to the
+    ``auth.factory`` setting, this function creates the server's authenticator.
+    The same configuration file must also assign a path to the
+    ``auth.simple.file`` setting.  The path should refer to an INI file
+    containing login/passcode pairs.  This function reads the the login/passcode
+    pairs from the INI file's ``[auth]`` section.
+
+    The following INI file snippet would tell CoilMQ to call this function to
+    get an authenticator with login/passcode pairs loaded from
+    ``/path/to/auth.ini``::
+
+        [coilmq]
+        auth.factory = coilmq.auth.simple:make_simple
+        auth.simple.file = /path/to/auth.ini
+
+    :returns: An authenticator populated from the file referenced by CoilMQ's
+        global configuration.
+
+    :raises ConfigError: if the CoilMQ configuration file does not define
+        ``coilmq.auth.simple.file``.
+    :raises FileNotFoundError: if the path given by ``auth.simple.file`` could
+        not be opened.
+    :raises ValueError: if the ``auth.simple.file`` is not a valid INI file or
+        does not contain an ``[auth]`` section.
+
     """
     authfile = config.get("coilmq", "auth.simple.file")
     if not authfile:
         raise ConfigError("Missing configuration parameter: auth.simple.file")
-    sa = SimpleAuthenticator()
-    sa.from_configfile(authfile)
-    return sa
+    return SimpleAuthenticator.from_ini(authfile)
 
 
 class SimpleAuthenticator(Authenticator):
-    """A simple configfile-based authenticator.
+    r"""A `dict`\ -backed authenticator.
 
-    :var store: Authentication key-value store (of logins to passwords).
-    :vartype store: dict[str, str]
+    :param store: each item is a login/passcode pair
+
     """
 
-    def __init__(self, store=None):
-        """Initialize the authenticator to use (optionally) specified :paramref:`store`.
+    def __init__(self, store: dict[str, str] | None = None) -> None:
+        self.store: Final[dict[str, str]] = store or {}
 
-        :param store: Authentication store whose keys are user names and values are
-            passwords.
-        :type store: dict[str, str]
-        """
-        if store is None:
-            store = {}
-        self.store = store
+    @classmethod
+    def from_ini(cls, ini: TextIO | str | bytes | os.PathLike[str]) -> Self:
+        """Initialize an authenticator from an INI file.
 
-    def from_configfile(self, configfile):
-        """Initialize the authentication store from a "config"-style file.
-
-        Auth "config" file is parsed with :py:class:`configparser.ConfigParser` and must contain
-        an ``[auth]`` section whose keys are user names and values are passwords.
-
-        Example auth file::
+        Load credentials from an INI file with an ``[auth]`` section.  Each
+        option in the ``[auth]`` section is a login/passcode pair.  A file with
+        the following content, loaded with this method, would yield an
+        authenticator with two login/passcode pairs::
 
             [auth]
             someuser = somepass
             anotheruser = anotherpass
 
-        :param configfile: Path to config file or file-like object.
-        :type configfile: typing.Any
-        :raises ValueError: If file could not be read or does not contain an ``[auth]``
-            section.
+        :param ini: Path to an INI file or file-like object opened in text mode.
+
+        :raises FileNotFoundError: if the path could not be opened.
+        :raises ValueError: if the file is not a valid INI file or does not
+            contain an ``[auth]`` section.
+
         """
         cfg = ConfigParser()
-        if hasattr(configfile, "read"):
-            cfg.read_file(configfile)
-        else:
-            filesread = cfg.read(configfile)
-            if not filesread:
-                raise ValueError(f"Could not parse auth file: {configfile}")
 
-        if not cfg.has_section("auth"):
-            raise ValueError("Config file contains no [auth] section.")
+        try:
+            if isinstance(ini, (str, bytes, os.PathLike)):
+                with open(ini) as src:
+                    cfg.read_file(src)
+            else:
+                cfg.read_file(ini)
+        except ParsingError as err:
+            msg = f"Could not read file: '{ini}'"
+            raise ValueError(msg) from err
 
-        self.store = dict(cfg.items("auth"))
+        try:
+            return cls(dict(cfg.items("auth")))
+        except NoSectionError as err:
+            msg = f"No [auth] section in file: '{ini}'"
+            raise ValueError(msg) from err
 
-    def authenticate(self, login, passcode):
-        """Authenticate the login and passcode.
-
-        :returns: Whether provided login and password match values in store.
-        :rtype: bool
-        """
+    def authenticate(self, login: str, passcode: str) -> bool:
         return login in self.store and self.store[login] == passcode

@@ -17,6 +17,7 @@ from coilmq.server import StompConnection
 from coilmq.util.frames import ErrorFrame, FrameBuffer
 
 if TYPE_CHECKING:
+    from coilmq.auth import Authenticator
     from coilmq.util.frames import Frame
 
 __authors__ = ['"Hans Lellelid" <hans@xmpl.org>']
@@ -178,7 +179,7 @@ class StompServer(TCPServer):
         server_address,
         RequestHandlerClass=None,
         timeout=3.0,
-        authenticator=None,
+        authenticator: Authenticator | None = None,
         queue_manager=None,
         topic_manager=None,
     ):
@@ -210,7 +211,7 @@ class StompServer(TCPServer):
         TCPServer.server_close(self)
         self.queue_manager.close()
         self.topic_manager.close()
-        if hasattr(self.authenticator, "close"):
+        if self.authenticator:
             self.authenticator.close()
 
     def shutdown(self):

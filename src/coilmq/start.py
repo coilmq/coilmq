@@ -1,11 +1,14 @@
 """Entrypoint for starting the application."""
 
+from __future__ import annotations
+
 import logging
 import os
 import threading
 import time
 import warnings
 from contextlib import contextmanager
+from typing import TYPE_CHECKING
 
 is_nt = os.name == "nt"
 
@@ -23,6 +26,9 @@ from coilmq.config import init_config, init_logging, resolve_name
 from coilmq.queue import QueueManager
 from coilmq.server.socket_server import ThreadedStompServer
 from coilmq.topic import TopicManager
+
+if TYPE_CHECKING:
+    from coilmq.auth import Authenticator
 
 __authors__ = ['"Hans Lellelid" <hans@xmpl.org>']
 __copyright__ = "Copyright 2009 Hans Lellelid"
@@ -71,7 +77,7 @@ def server_from_config(config=None, server_class=None, additional_kwargs=None):
 
     if config.has_option("coilmq", "auth.factory"):
         authenticator_factory = resolve_name(config.get("coilmq", "auth.factory"))
-        authenticator = authenticator_factory()
+        authenticator: Authenticator = authenticator_factory()
     else:
         authenticator = None
 
