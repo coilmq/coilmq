@@ -43,15 +43,6 @@ class Client:
     received_frames: Final[Queue[Frame]]
     """Frames received by this client."""
 
-    @property
-    def _encoding(self) -> str | None:
-        return self.__encoding
-
-    @_encoding.setter
-    def _encoding(self, value: str | None) -> None:
-        self.log.info("setting client encoding; old=%s, new=%s", self.__encoding, value)
-        self.__encoding = value
-
     def __init__(self, addr: tuple[str, int]) -> None:
         self.log = logging.getLogger(f"{self.__module__}.{self.__class__.__name__}")
 
@@ -130,11 +121,17 @@ class Client:
                             self.log.debug("Processing frame: %s", frame)
 
                             if frame.cmd == frames.CONNECTED:
-                                self._encoding = {
+                                encoding: str = {
                                     "1.0": "stomp1.0",
                                     "1.1": "stomp1.1",
                                     "1.2": "stomp1.2",
                                 }.get(frame.headers.get("version"), "stomp1.0")
+                                self.log.info(
+                                    "setting client encoding; old=%s, new=%s",
+                                    self.__encoding,
+                                    encoding,
+                                )
+                                self.__encoding = encoding
 
                             self.received_frames.put_nowait(frame)
 
@@ -144,7 +141,7 @@ class Client:
                         except Empty:
                             pass
                         else:
-                            server.sendall(frame.pack(self._encoding))
+                            server.sendall(frame.pack(self.__encoding))
                         finally:
                             self._ssock.recv(1)
 
