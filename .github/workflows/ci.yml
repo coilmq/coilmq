@@ -8,6 +8,8 @@ on:
       - opened
       - synchronize
 
+permissions: {}
+
 jobs:
   pytest-linux:
     runs-on: ubuntu-latest
@@ -25,10 +27,12 @@ jobs:
           - "3.15"
 
     steps:
-      - uses: actions/checkout@v6.1.0
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install uv and set the Python version
-        uses: astral-sh/setup-uv@v7.6.0
+        uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
@@ -51,6 +55,8 @@ jobs:
   tests:
     if: always()
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     needs: [pytest-linux]
     steps:
       - name: Check matrix status
