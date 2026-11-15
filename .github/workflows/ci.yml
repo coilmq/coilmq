@@ -25,10 +25,10 @@ jobs:
           - "3.15"
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.1.0
 
       - name: Install uv and set the Python version
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@v7.6.0
         with:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
@@ -58,7 +58,7 @@ jobs:
         run: exit 1
 
       - name: Finish Coveralls parallel build
-        uses: coverallsapp/github-action@v2
+        uses: coverallsapp/github-action@v2.3.8
         with:
           parallel-finished: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
