@@ -8,6 +8,8 @@ on:
       - opened
       - synchronize
 
+permissions: {}
+
 jobs:
   pytest-linux:
     runs-on: ubuntu-latest
@@ -22,16 +24,19 @@ jobs:
           - "3.12"
           - "3.13"
           - "3.14"
+          - "3.15"
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install uv and set the Python version
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
-          version: "0.11.2"
+          version: "0.13.8"
 
       - name: Install the project
         run: uv sync --locked --all-extras --dev
@@ -50,6 +55,8 @@ jobs:
   tests:
     if: always()
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     needs: [pytest-linux]
     steps:
       - name: Check matrix status
@@ -57,7 +64,7 @@ jobs:
         run: exit 1
 
       - name: Finish Coveralls parallel build
-        uses: coverallsapp/github-action@v2
+        uses: coverallsapp/github-action@v2.3.8
         with:
           parallel-finished: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
