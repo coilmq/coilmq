@@ -1,6 +1,7 @@
 import pickle
 import sys
-import threading
+
+import wrapt
 
 try:
     import redis
@@ -9,7 +10,6 @@ except ImportError:  # pragma: no cover
 
 from coilmq.config import config
 from coilmq.store import QueueStore
-from coilmq.util.concurrency import synchronized
 
 __authors__ = (
     '"Hans Lellelid" <hans@xmpl.org>',
@@ -28,8 +28,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License."""
 
-lock = threading.RLock()
-
 
 def make_redis_store(cfg=None):
     return RedisQueueStore(
@@ -45,28 +43,28 @@ class RedisQueueStore(QueueStore):
         self.__db = redis_conn or redis.Redis()
         super().__init__()
 
-    @synchronized(lock)
+    @wrapt.synchronized
     def enqueue(self, destination, frame):
         self.__db.rpush(destination, pickle.dumps(frame))
 
-    @synchronized(lock)
+    @wrapt.synchronized
     def dequeue(self, destination):
         item = self.__db.lpop(destination)
         if item:
             return pickle.loads(item)
 
-    @synchronized(lock)
+    @wrapt.synchronized
     def requeue(self, destination, frame):
         self.enqueue(destination, frame)
 
-    @synchronized(lock)
+    @wrapt.synchronized
     def size(self, destination):
         return self.__db.llen(destination)
 
-    @synchronized(lock)
+    @wrapt.synchronized
     def has_frames(self, destination):
         return self.size(destination) > 0
 
-    @synchronized(lock)
+    @wrapt.synchronized
     def destinations(self):
         return self.__db.keys()

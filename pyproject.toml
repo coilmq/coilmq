@@ -46,6 +46,7 @@ dependencies = [
     "importlib-resources>=6.4.5; python_full_version<'3.9'",
     "pid>=3.0.4",
     "python-daemon>=3.1.2",
+    "wrapt>=2.0.1",
 ]
 optional-dependencies.redis = [
     "redis>=6.1.1",

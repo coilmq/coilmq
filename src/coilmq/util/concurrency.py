@@ -1,7 +1,6 @@
 """Tools to facilitate developing thread-safe components."""
 
 import abc
-import functools
 import threading
 
 __authors__ = ['"Hans Lellelid" <hans@xmpl.org>']
@@ -17,27 +16,6 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License."""
-
-
-def synchronized(lock):
-    def synchronize(func):
-        """Decorator to lock and unlock a method (Phillip J. Eby).
-
-        This function is to be used with object instance methods; the object must
-        have a _lock variable (of type :py:class:`threading.Lock` or :py:class:`threading.RLock`).
-
-        :param func: Method to decorate
-        :type func: callable
-        """
-
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            with lock:
-                return func(*args, **kwargs)
-
-        return wrapper
-
-    return synchronize
 
 
 class CoilTimerBase(abc.ABC):

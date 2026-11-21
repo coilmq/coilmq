@@ -11,15 +11,15 @@ large frames.
 import os
 import os.path
 import shelve
-import threading
 from collections import deque
 from configparser import NoOptionError
 from datetime import datetime, timedelta
 
+import wrapt
+
 from coilmq.config import config
 from coilmq.exception import ConfigError
 from coilmq.store import QueueStore
-from coilmq.util.concurrency import synchronized
 
 __authors__ = ['"Hans Lellelid" <hans@xmpl.org>']
 __copyright__ = "Copyright 2009 Hans Lellelid"
@@ -34,8 +34,6 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License."""
-
-lock = threading.RLock()
 
 
 def make_dbm():
@@ -66,10 +64,6 @@ class DbmQueue(QueueStore):
     Several database files will be used to support this functionality: metadata about the
     queues will be stored in its own database and each queue will also have its own
     database file.
-
-    This class uses a :py:class:`threading.RLock` to guard access to the memory store, since it
-    appears that at least some of the underlying implementations that :py:mod:`dbm` uses are not
-    thread-safe.
 
     Due to some impedance mismatch between the types of data we need to store in queues
     (specifically lists) and the types of data that are best stored in DBM databases
@@ -133,7 +127,7 @@ class DbmQueue(QueueStore):
             writeback=False,
         )
 
-    @synchronized(lock)
+    @wrapt.synchronized
     def enqueue(self, destination, frame):
         """Store message (frame) for specified destination.
 
@@ -167,7 +161,7 @@ class DbmQueue(QueueStore):
         self._opcount += 1
         self._sync()
 
-    @synchronized(lock)
+    @wrapt.synchronized
     def dequeue(self, destination):
         """Removes and returns an item from the queue (or :py:obj:`None` if no items in queue).
 
@@ -192,7 +186,7 @@ class DbmQueue(QueueStore):
 
         return frame
 
-    @synchronized(lock)
+    @wrapt.synchronized
     def has_frames(self, destination):
         """Whether specified queue has any frames.
 
@@ -206,7 +200,7 @@ class DbmQueue(QueueStore):
             self.queue_metadata[destination]["frames"]
         )
 
-    @synchronized(lock)
+    @wrapt.synchronized
     def size(self, destination):
         """Size of the queue for specified destination.
 
@@ -221,13 +215,13 @@ class DbmQueue(QueueStore):
         else:
             return len(self.queue_metadata[destination]["frames"])
 
-    @synchronized(lock)
+    @wrapt.synchronized
     def close(self):
         """Closes the databases, freeing any resources (and flushing any unsaved changes to disk)."""
         self.queue_metadata.close()
         self.frame_store.close()
 
-    @synchronized(lock)
+    @wrapt.synchronized
     def destinations(self):
         """Provides a list of destinations (queue "addresses") available.
 
