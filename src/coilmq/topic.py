@@ -5,13 +5,13 @@ Patrick Hurley and Lionel Bouton.  See http://stompserver.rubyforge.org/
 """
 
 import logging
-import threading
 import uuid
 from copy import deepcopy
 
+import wrapt
+
 from coilmq.subscription import SubscriptionManager
 from coilmq.util import frames
-from coilmq.util.concurrency import synchronized
 
 __authors__ = ['"Hans Lellelid" <hans@xmpl.org>']
 __copyright__ = "Copyright 2009 Hans Lellelid"
@@ -27,18 +27,9 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License."""
 
-lock = threading.RLock()
-
 
 class TopicManager:
     """Class that manages distribution of messages to topic subscribers.
-
-    This class uses :py:class:`threading.RLock` to guard the public methods.  This is probably
-    a bit excessive, given 1) the atomic nature of basic :py:class:`dict` read/write operations
-    and  2) the fact that most of the internal data structures are keying off of the
-    STOMP connection, which is going to be thread-isolated.  That said, this seems like
-    the technically correct approach and should increase the chance of this code being
-    portable to non-GIL systems.
 
     :var _subscriptions: A dict of registered topics, keyed by destination.
     :vartype _subscriptions: dict[str, set[coilmq.server.StompConnection]]
@@ -47,14 +38,11 @@ class TopicManager:
     def __init__(self):
         self.log = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
-        # Lock var is required for L{synchronized} decorator.
-        self._lock = threading.RLock()
-
         self._subscriptions = SubscriptionManager()
 
         # TODO: If we want durable topics, we'll need a store for topics.
 
-    @synchronized(lock)
+    @wrapt.synchronized
     def close(self):
         """Closes all resources associated with this topic manager.
 
@@ -62,7 +50,7 @@ class TopicManager:
         """
         self.log.info("Shutting down topic manager.")  # pragma: no cover
 
-    @synchronized(lock)
+    @wrapt.synchronized
     def subscribe(self, connection, destination, id=None):
         """Subscribes a connection to the specified topic destination.
 
@@ -75,7 +63,7 @@ class TopicManager:
         self.log.debug("Subscribing %s to %s", connection, destination)
         self._subscriptions.subscribe(connection, destination, id=id)
 
-    @synchronized(lock)
+    @wrapt.synchronized
     def unsubscribe(self, connection, destination, id=None):
         """Unsubscribes a connection from the specified topic destination.
 
@@ -88,7 +76,7 @@ class TopicManager:
         self.log.debug("Unsubscribing %s from %s", connection, destination)
         self._subscriptions.unsubscribe(connection, destination, id=id)
 
-    @synchronized(lock)
+    @wrapt.synchronized
     def disconnect(self, connection):
         """Removes a subscriber connection.
 
@@ -98,7 +86,7 @@ class TopicManager:
         self.log.debug("Disconnecting %s", connection)
         self._subscriptions.disconnect(connection)
 
-    @synchronized(lock)
+    @wrapt.synchronized
     def send(self, message):
         """Sends a message to all subscribers of destination.
 

@@ -2,9 +2,6 @@
 
 import abc
 import logging
-import threading
-
-from coilmq.util.concurrency import synchronized
 
 __authors__ = ['"Hans Lellelid" <hans@xmpl.org>']
 __copyright__ = "Copyright 2009 Hans Lellelid"
@@ -19,8 +16,6 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License."""
-
-lock = threading.RLock()
 
 
 class QueueStore(abc.ABC):
@@ -41,7 +36,6 @@ class QueueStore(abc.ABC):
         self.log = logging.getLogger(f"{self.__module__}.{self.__class__.__name__}")
 
     @abc.abstractmethod
-    @synchronized(lock)
     def enqueue(self, destination, frame):
         """Store message (frame) for specified destination.
 
@@ -53,7 +47,6 @@ class QueueStore(abc.ABC):
         """
 
     @abc.abstractmethod
-    @synchronized(lock)
     def dequeue(self, destination):
         """Removes and returns an item from the queue (or :py:obj:`None` if no items in queue).
 
@@ -65,7 +58,6 @@ class QueueStore(abc.ABC):
         :rtype: coilmq.util.frames.Frame
         """
 
-    @synchronized(lock)
     def requeue(self, destination, frame):
         """Requeue a message (frame) for storing at specified destination.
 
@@ -77,7 +69,6 @@ class QueueStore(abc.ABC):
         """
         self.enqueue(destination, frame)
 
-    @synchronized(lock)
     def size(self, destination):
         """Size of the queue for specified destination.
 
@@ -89,7 +80,6 @@ class QueueStore(abc.ABC):
         """
         raise NotImplementedError()
 
-    @synchronized(lock)
     def has_frames(self, destination):
         """Whether specified destination has any frames.
 
@@ -104,7 +94,6 @@ class QueueStore(abc.ABC):
         """
         return self.size(destination) > 0
 
-    @synchronized(lock)
     def destinations(self):
         """Provides a set of destinations (queue "addresses") available.
 
@@ -113,8 +102,7 @@ class QueueStore(abc.ABC):
         """
         raise NotImplementedError
 
-    @synchronized(lock)  # ruff: ignore[empty-method-without-abstract-decorator]
-    def close(self):
+    def close(self):  # ruff: ignore[empty-method-without-abstract-decorator]
         """May be implemented to perform any necessary cleanup operations when store is closed."""
 
     # This is intentionally not synchronized, since it does not directly

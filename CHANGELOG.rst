@@ -35,6 +35,7 @@ Unreleased
 - CoilMQ does not escape frame delimiting characters (:issue:`100`)
 - CoilMQ uses the wrong text codec for STOMP 1.0 frames (:issue:`106`)
 - CoilMQ splits headers at each colon character (:issue:`103`)
+- CoilMQ's internal locks prevent concurrent access at the wrong scope (:issue:`119`)
 
 **Security**
 

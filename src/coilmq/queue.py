@@ -5,13 +5,13 @@ Patrick Hurley and Lionel Bouton.  See http://stompserver.rubyforge.org/
 """
 
 import logging
-import threading
 import uuid
 from collections import defaultdict
 
+import wrapt
+
 from coilmq.scheduler import FavorReliableSubscriberScheduler, RandomQueueScheduler
 from coilmq.subscription import Subscription, SubscriptionManager
-from coilmq.util.concurrency import synchronized
 from coilmq.util.frames import MESSAGE
 
 __authors__ = ['"Hans Lellelid" <hans@xmpl.org>']
@@ -28,18 +28,9 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License."""
 
-lock = threading.RLock()
-
 
 class QueueManager:
     """Class that manages distribution of messages to queue subscribers.
-
-    This class uses :py:class:`threading.RLock` to guard the public methods.  This is probably
-    a bit excessive, given 1) the atomic nature of basic :py:class:`dict` read/write operations
-    and  2) the fact that most of the internal data structures are keying off of the
-    STOMP connection, which is going to be thread-isolated.  That said, this seems like
-    the technically correct approach and should increase the chance of this code being
-    portable to non-GIL systems.
 
     :var store: The queue storage backend to use.
     :vartype store: coilmq.store.QueueStore
@@ -80,9 +71,6 @@ class QueueManager:
         if queue_scheduler is None:
             queue_scheduler = RandomQueueScheduler()
 
-        # This lock var is required by L{synchronized} decorator.
-        self._lock = threading.RLock()
-
         self.store = store
         self.subscriber_scheduler = subscriber_scheduler
         self.queue_scheduler = queue_scheduler
@@ -91,7 +79,7 @@ class QueueManager:
         self._transaction_frames = defaultdict(lambda: defaultdict(list))
         self._pending = {}
 
-    @synchronized(lock)
+    @wrapt.synchronized
     def close(self):
         """Closes all resources/backends associated with this queue manager."""
         self.log.info("Shutting down queue manager.")
@@ -104,7 +92,7 @@ class QueueManager:
         if hasattr(self.queue_scheduler, "close"):
             self.queue_scheduler.close()
 
-    @synchronized(lock)
+    @wrapt.synchronized
     def subscriber_count(self, destination=None):
         """Returns a count of the number of subscribers.
 
@@ -119,7 +107,7 @@ class QueueManager:
         """
         return self._subscriptions.subscriber_count(destination=destination)
 
-    @synchronized(lock)
+    @wrapt.synchronized
     def subscribe(self, connection, destination, id=None):
         """Subscribes a connection to the specified destination (topic or queue).
 
@@ -133,7 +121,7 @@ class QueueManager:
         subscription = self._subscriptions.subscribe(connection, destination, id=id)
         self._send_backlog(subscription, destination)
 
-    @synchronized(lock)
+    @wrapt.synchronized
     def unsubscribe(self, connection, destination, id=None):
         """Unsubscribes a connection from a destination (topic or queue).
 
@@ -146,7 +134,7 @@ class QueueManager:
         self.log.debug("Unsubscribing %s from %s", connection, destination)
         self._subscriptions.unsubscribe(connection, destination, id=id)
 
-    @synchronized(lock)
+    @wrapt.synchronized
     def disconnect(self, connection):
         """Removes a subscriber connection, ensuring that any pending commands get requeued.
 
@@ -162,7 +150,7 @@ class QueueManager:
                 del self._pending[subscription]
         self._subscriptions.disconnect(connection)
 
-    @synchronized(lock)
+    @wrapt.synchronized
     def send(self, message):
         """Sends a MESSAGE frame to an eligible subscriber connection.
 
@@ -197,7 +185,7 @@ class QueueManager:
             self.log.debug("Delivering message %s to subscriber %s", message, selected)
             self._send_frame(selected, message)
 
-    @synchronized(lock)
+    @wrapt.synchronized
     def ack(self, connection, frame, transaction=None, id=None):
         """Acknowledge receipt of a message.
 
@@ -234,7 +222,7 @@ class QueueManager:
         else:
             self.log.debug("No pending messages for %s", subscription)
 
-    @synchronized(lock)
+    @wrapt.synchronized
     def resend_transaction_frames(self, connection, transaction):
         """Resend the messages that were ACK'd in specified transaction.
 
@@ -251,7 +239,7 @@ class QueueManager:
                 for frame in frames[transaction]:
                     self.send(frame)
 
-    @synchronized(lock)
+    @wrapt.synchronized
     def clear_transaction_frames(self, connection, transaction):
         """Clears out the queued ACK frames for specified transaction.
 
