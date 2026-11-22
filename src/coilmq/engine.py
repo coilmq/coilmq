@@ -22,6 +22,8 @@ import logging
 from collections import defaultdict
 from typing import TYPE_CHECKING
 
+from coilmq.util.frames import ErrorFrame
+
 if TYPE_CHECKING:
     from coilmq.auth import Authenticator
     from coilmq.protocol import AbstractSTOMP
@@ -90,7 +92,17 @@ class StompEngine:
 
     def process_frame(self, frame: Frame) -> None:
         self.log.debug("Processing frame: %s", frame)
-        self.protocol.process_frame(frame)
+        try:
+            receipt = self.protocol.process_frame(frame)
+        except Exception as err:
+            self.log.exception("Error processing STOMP frame")
+            try:
+                self.connection.send_frame(ErrorFrame(str(err), str(err).encode()))
+            except Exception:  # pragma: no cover
+                self.log.exception("Could not send error frame")
+        else:
+            if receipt is not None:
+                self.connection.send_frame(receipt)
 
     def unbind(self):
         """Unbinds this connection from queue and topic managers (freeing up resources)
@@ -99,4 +111,4 @@ class StompEngine:
         self.connected = False
         self.queue_manager.disconnect(self.connection)
         self.topic_manager.disconnect(self.connection)
-        self.protocol.disable_heartbeat()
+        self.protocol.close()

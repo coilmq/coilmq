@@ -28,25 +28,6 @@ NACK = "NACK"
 STOMP = "STOMP"
 DISCONNECT = "DISCONNECT"
 
-VALID_COMMANDS = [
-    MESSAGE,
-    CONNECT,
-    CONNECTED,
-    ERROR,
-    SEND,
-    SUBSCRIBE,
-    UNSUBSCRIBE,
-    BEGIN,
-    COMMIT,
-    ABORT,
-    ACK,
-    DISCONNECT,
-    NACK,
-    STOMP,
-]
-
-TEXT_PLAIN = "text/plain"
-
 
 class IncompleteFrame(Exception):
     """The frame has incomplete body."""

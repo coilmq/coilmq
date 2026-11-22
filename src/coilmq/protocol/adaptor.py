@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, cast
 from coilmq.exception import AuthError, ProtocolError
 from coilmq.util import frames
 from coilmq.util.concurrency import CoilThreadingTimer
-from coilmq.util.frames import ConnectedFrame, ErrorFrame, ReceiptFrame
+from coilmq.util.frames import ConnectedFrame, ReceiptFrame
 
 if TYPE_CHECKING:
     from coilmq.engine import StompEngine
@@ -28,12 +28,13 @@ class AbstractSTOMP(abc.ABC):
         super().__init__(*args, **kwargs)
         self.engine = engine
 
-    def stomp(self, frame):
-        self.connect(frame)
-
     @abc.abstractmethod
-    def process_frame(self, frame):
-        raise NotImplementedError
+    def process_frame(self, frame: Frame) -> ReceiptFrame | None:
+        """Dispatches a frame to the appropriate internal method.
+
+        :param frame: The incoming frame.
+
+        """
 
     @abc.abstractmethod
     def connect(self, frame: Frame, response: ConnectedFrame | None = None) -> None:
@@ -71,9 +72,8 @@ class AbstractSTOMP(abc.ABC):
     def disconnect(self, frame):
         raise NotImplementedError
 
-    @abc.abstractmethod
-    def disable_heartbeat(self):
-        raise NotImplementedError
+    def close(self) -> None:  # ruff: ignore[empty-method-without-abstract-decorator]
+        """Close the adaptor by releasing any held resources."""
 
 
 class STOMP10(AbstractSTOMP):
@@ -81,47 +81,65 @@ class STOMP10(AbstractSTOMP):
     def encoding(self) -> str:
         return "stomp1.0"
 
-    def process_frame(self, frame):
-        """Dispatches a received frame to the appropriate internal method.
+    def process_frame(self, frame: Frame) -> ReceiptFrame | None:
+        if frame.cmd == frames.CONNECT:
+            self.connect(frame)
+            # Do not send a ``RECEIPT`` frame for ``CONNECT`` even if the command
+            # happens to include a ``receipt`` header.
+            return None
 
-        :param frame: The frame that was received.
-        :type frame: coilmq.util.frames.Frame
-        """
-        if frame.cmd not in frames.VALID_COMMANDS:
-            raise ProtocolError(f"Invalid STOMP command: {frame.cmd}")
-
-        method = getattr(self, frame.cmd.lower(), None)
-
-        if not self.engine.connected and method not in (self.connect, self.stomp):
-            raise ProtocolError("Not connected.")
-
-        try:
+        if frame.cmd == frames.SEND:
             transaction = frame.headers.get("transaction")
-            if not transaction or method in (self.begin, self.commit, self.abort):
-                method(frame)
-            else:
-                if transaction not in self.engine.transactions:
-                    raise ProtocolError(f"Invalid transaction specified: {transaction}")
-                self.engine.transactions[transaction].append(frame)
-        except Exception as e:
-            self.engine.log.exception("Error processing STOMP frame")
-            try:
-                self.engine.connection.send_frame(ErrorFrame(str(e), str(e).encode()))
-            except Exception:  # pragma: no cover
-                self.engine.log.exception("Could not send error frame")
-        else:
-            # The protocol is not especially clear here (not sure why I'm surprised)
-            # about the expected behavior WRT receipts and errors.  We will assume that
-            # the RECEIPT frame should not be sent if there is an error frame.
-            # Also we'll assume that a transaction should not preclude sending the receipt
-            # frame.
-            if frame.headers.get("receipt") and method != self.connect:
-                self.engine.connection.send_frame(
-                    ReceiptFrame(receipt=frame.headers.get("receipt"))
-                )
 
-    def disable_heartbeat(self):
-        pass
+            if transaction is None:
+                self.send(frame)
+            elif transaction in self.engine.transactions:
+                self.engine.transactions[transaction].append(frame)
+            else:
+                raise ProtocolError(f"Invalid transaction: {transaction}")
+
+        elif frame.cmd == frames.SUBSCRIBE:
+            self.subscribe(frame)
+        elif frame.cmd == frames.UNSUBSCRIBE:
+            self.unsubscribe(frame)
+        elif frame.cmd == frames.BEGIN:
+            self.begin(frame)
+        elif frame.cmd == frames.COMMIT:
+            self.commit(frame)
+        elif frame.cmd == frames.ABORT:
+            self.abort(frame)
+        elif frame.cmd == frames.ACK:
+            transaction = frame.headers.get("transaction")
+
+            if transaction is None:
+                self.ack(frame)
+            elif transaction in self.engine.transactions:
+                self.engine.transactions[transaction].append(frame)
+            else:
+                raise ProtocolError(f"Invalid transaction: {transaction}")
+
+        elif frame.cmd == frames.DISCONNECT:
+            self.disconnect(frame)
+        else:
+            raise ProtocolError(f"Invalid command: {frame.cmd}")
+
+        # The protocol is not especially clear here (not sure why I'm surprised) about
+        # the expected behavior WRT receipts and errors.  We will assume that the
+        # ``RECEIPT`` frame should not be sent if there is an error.  We'll also assume
+        # that a transaction should not preclude sending the receipt frame.
+        return self._frame_to_receipt_frame(frame)
+
+    def _frame_to_receipt_frame(self, frame: Frame) -> ReceiptFrame | None:
+        """Return a ``RECEIPT`` frame if the client asked for one.
+
+        :param frame: A command frame from a client.
+
+        :returns: If ``frame`` has a ``receipt`` header, this method will return a
+            ``RECEIPT`` frame with the same header, otherwise `None`.
+
+        """
+        receipt = frame.headers.get("receipt")
+        return ReceiptFrame(receipt=str(receipt)) if receipt is not None else None
 
     def connect(self, frame: Frame, response: ConnectedFrame | None = None) -> None:
         """Handle CONNECT command: Establishes a new connection and checks auth (if applicable)."""
@@ -288,7 +306,7 @@ class STOMP11(STOMP10):
         sy = int(self.receive_heartbeat_interval / datetime.timedelta(milliseconds=1))
         return sx, sy
 
-    def disable_heartbeat(self):
+    def close(self):
         self.timer.stop()
 
     def send_heartbeat(self):
@@ -323,6 +341,17 @@ class STOMP11(STOMP10):
 
         super().connect(frame, response)
 
+    def stomp(self, frame: Frame) -> None:
+        """Establish a new connection.
+
+        This method handles the ``STOMP`` command added in STOMP 1.1.  ``STOMP`` is an
+        alias for the ``CONNECT`` command.
+
+        :param frame: A ``STOMP`` frame.
+
+        """
+        self.connect(frame)
+
     def nack(self, frame):
         """Handles the NACK command: Unacknowledges receipt of a message.
         For now, this is just a placeholder to implement this version of the protocol.
@@ -353,6 +382,28 @@ class STOMP11(STOMP10):
         self.engine.queue_manager.ack(
             self.engine.connection, frame, id=frame.headers["subscription"]
         )
+
+    def process_frame(self, frame: Frame) -> ReceiptFrame | None:
+        if frame.cmd == frames.STOMP:
+            # Do not send a ``RECEIPT`` frame for ``STOMP`` even if the command happens
+            # to include a ``receipt`` header.
+            self.stomp(frame)
+            return None
+
+        if frame.cmd == frames.NACK:
+            transaction = frame.headers.get("transaction")
+
+            if transaction is None:
+                self.nack(frame)
+            elif transaction in self.engine.transactions:
+                self.engine.transactions[transaction].append(frame)
+            else:
+                raise ProtocolError(f"Invalid transaction: {transaction}")
+
+        else:
+            return super().process_frame(frame)
+
+        return self._frame_to_receipt_frame(frame)
 
 
 class STOMP12(STOMP11):
