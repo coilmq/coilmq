@@ -150,7 +150,7 @@ class STOMP10(AbstractSTOMP):
             or (passcode := frame.headers.get("passcode")) is None
             or not self.engine.authenticator.authenticate(str(login), str(passcode))
         ):
-            raise AuthError(f"Authentication failed")
+            raise AuthError("Authentication failed")
 
         self.engine.connected = True
 
