@@ -28,6 +28,10 @@ class AbstractSTOMP(abc.ABC):
 
     """
 
+    def __init__(self, engine: StompEngine, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.engine = engine
+
     @property
     @abc.abstractmethod
     def encoding(self) -> str:
@@ -38,10 +42,6 @@ class AbstractSTOMP(abc.ABC):
         the encoding used by the version of STOMP supported by the class.
 
         """
-
-    def __init__(self, engine: StompEngine, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.engine = engine
 
     @abc.abstractmethod
     def process_frame(self, frame: Frame) -> ReceiptFrame | None:
@@ -63,6 +63,13 @@ class STOMP10(AbstractSTOMP):
         return "stomp1.0"
 
     def process_frame(self, frame: Frame) -> ReceiptFrame | None:
+        """Dispatches a frame to the appropriate internal method.
+
+        :param frame: The incoming frame.
+
+        :raises ProtocolError: if a frame violates the protocol.
+
+        """
         if frame.cmd == frames.CONNECT:
             self.connect(frame)
             # Do not send a ``RECEIPT`` frame for ``CONNECT`` even if the command
@@ -304,10 +311,6 @@ class STOMP10(AbstractSTOMP):
 class STOMP11(STOMP10):
     """Adapt STOMP 1.1 to CoilMQ's internal machinery."""
 
-    @property
-    def encoding(self) -> str:
-        return "stomp1.1"
-
     def __init__(
         self,
         engine: StompEngine,
@@ -324,6 +327,35 @@ class STOMP11(STOMP10):
         self.receive_heartbeat_interval = datetime.timedelta(
             milliseconds=receive_heartbeat_interval
         )
+
+    @property
+    def encoding(self) -> str:
+        return "stomp1.1"
+
+    def process_frame(self, frame: Frame) -> ReceiptFrame | None:
+        if frame.cmd == frames.STOMP:
+            self.stomp(frame)
+            # Do not send a ``RECEIPT`` frame for ``STOMP`` even if the command happens
+            # to include a ``receipt`` header.
+            return None
+
+        if frame.cmd == frames.NACK:
+            transaction = frame.headers.get("transaction")
+
+            if transaction is None:
+                self.nack(frame)
+            elif transaction in self.engine.transactions:
+                self.engine.transactions[transaction].append(frame)
+            else:
+                raise ProtocolError(f"Invalid transaction: {transaction}")
+
+        else:
+            return super().process_frame(frame)
+
+        return self._frame_to_receipt_frame(frame)
+
+    def close(self):
+        self.timer.stop()
 
     def enable_heartbeat(self, cx: int, cy: int) -> tuple[int, int]:
         if self.send_heartbeat_interval and cy:
@@ -345,9 +377,6 @@ class STOMP11(STOMP10):
         sx = int(self.send_heartbeat_interval / datetime.timedelta(milliseconds=1))
         sy = int(self.receive_heartbeat_interval / datetime.timedelta(milliseconds=1))
         return sx, sy
-
-    def close(self):
-        self.timer.stop()
 
     def send_heartbeat(self):
         if not self.engine.connected:
@@ -406,26 +435,6 @@ class STOMP11(STOMP10):
         """
         self.connect(frame)
 
-    def nack(self, frame):
-        """Roll back a message that a client did not consume.
-
-        A ``NACK`` command indicates that a reliable subscriber received a frame but did
-        not consume it.  That frame is eligible for delivery to another subscriber.
-
-        :param frame: A ``NACK`` frame.
-
-        .. Note:: This method is a placeholder.  CoilMQ does not implement the ``NACK``
-                  command at this time.
-
-        """
-        if not frame.headers.get("message-id"):
-            raise ProtocolError("No message-id specified for NACK command.")
-        if not frame.headers.get("subscription"):
-            raise ProtocolError("No subscription specified for NACK command.")
-
-        raise NotImplementedError("Nack implementation incomplete")
-        # ToDo: self.engine.queue_manager.nack()
-
     def subscribe(self, frame):
         if "id" not in frame.headers:
             raise ProtocolError("No 'id' specified for SUBSCRIBE command.")
@@ -445,27 +454,25 @@ class STOMP11(STOMP10):
             self.engine.connection, frame, id=frame.headers["subscription"]
         )
 
-    def process_frame(self, frame: Frame) -> ReceiptFrame | None:
-        if frame.cmd == frames.STOMP:
-            # Do not send a ``RECEIPT`` frame for ``STOMP`` even if the command happens
-            # to include a ``receipt`` header.
-            self.stomp(frame)
-            return None
+    def nack(self, frame):
+        """Roll back a message that a client did not consume.
 
-        if frame.cmd == frames.NACK:
-            transaction = frame.headers.get("transaction")
+        A ``NACK`` command indicates that a reliable subscriber received a frame but did
+        not consume it.  That frame is eligible for delivery to another subscriber.
 
-            if transaction is None:
-                self.nack(frame)
-            elif transaction in self.engine.transactions:
-                self.engine.transactions[transaction].append(frame)
-            else:
-                raise ProtocolError(f"Invalid transaction: {transaction}")
+        :param frame: A ``NACK`` frame.
 
-        else:
-            return super().process_frame(frame)
+        .. Note:: This method is a placeholder.  CoilMQ does not implement the ``NACK``
+                  command at this time.
 
-        return self._frame_to_receipt_frame(frame)
+        """
+        if not frame.headers.get("message-id"):
+            raise ProtocolError("No message-id specified for NACK command.")
+        if not frame.headers.get("subscription"):
+            raise ProtocolError("No subscription specified for NACK command.")
+
+        raise NotImplementedError("Nack implementation incomplete")
+        # ToDo: self.engine.queue_manager.nack()
 
 
 class STOMP12(STOMP11):
