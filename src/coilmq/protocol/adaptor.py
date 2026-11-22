@@ -160,7 +160,7 @@ class STOMP10(AbstractSTOMP):
         # (Actually, I don't think the spec actually does anything with this at all.)
         self.engine.connection.send_frame(response)
 
-    def send(self, frame):
+    def send(self, frame: Frame) -> None:
         """Deliver a message to a queue or topic.
 
         :param frame: A ``SEND`` frame.
@@ -177,7 +177,7 @@ class STOMP10(AbstractSTOMP):
         else:
             self.engine.topic_manager.send(frame)
 
-    def subscribe(self, frame):
+    def subscribe(self, frame: Frame) -> None:
         """Add this connection to a destination.
 
         :param frame: A ``SUBSCRIBE`` frame.
@@ -204,7 +204,7 @@ class STOMP10(AbstractSTOMP):
                 self.engine.connection, dest, id=subscription_id
             )
 
-    def unsubscribe(self, frame):
+    def unsubscribe(self, frame: Frame) -> None:
         """Remove this connection from a destination.
 
         :param frame: An ``UNSUBSCRIBE`` frame.
@@ -226,7 +226,7 @@ class STOMP10(AbstractSTOMP):
                 self.engine.connection, dest, id=subscription_id
             )
 
-    def begin(self, frame):
+    def begin(self, frame: Frame) -> None:
         """Start a new transaction.
 
         :param frame: A ``BEGIN`` frame.
@@ -239,7 +239,7 @@ class STOMP10(AbstractSTOMP):
 
         self.engine.transactions[frame.transaction] = []
 
-    def commit(self, frame):
+    def commit(self, frame: Frame) -> None:
         """Execute the specified pending transaction.
 
         :param frame: A ``COMMIT`` frame.
@@ -262,7 +262,7 @@ class STOMP10(AbstractSTOMP):
         )
         del self.engine.transactions[frame.transaction]
 
-    def abort(self, frame):
+    def abort(self, frame: Frame) -> None:
         """Roll back the specified pending transaction.
 
         :param frame: An ``ABORT`` frame.
@@ -281,7 +281,7 @@ class STOMP10(AbstractSTOMP):
         )
         del self.engine.transactions[frame.transaction]
 
-    def ack(self, frame):
+    def ack(self, frame: Frame) -> None:
         """Retire a message that the client has acknowledged receiving.
 
         :param frame: An ``ACK`` frame.
@@ -295,7 +295,7 @@ class STOMP10(AbstractSTOMP):
             self.engine.connection, frame, id=frame.headers.get("id")
         )
 
-    def disconnect(self, frame):
+    def disconnect(self, frame: Frame) -> None:
         """Unbind the connection.
 
         :param frame: A ``DISCONNECT`` frame.
@@ -354,7 +354,7 @@ class STOMP11(STOMP10):
 
         return self._frame_to_receipt_frame(frame)
 
-    def close(self):
+    def close(self) -> None:
         self.timer.stop()
 
     def enable_heartbeat(self, cx: int, cy: int) -> tuple[int, int]:
@@ -378,12 +378,12 @@ class STOMP11(STOMP10):
         sy = int(self.receive_heartbeat_interval / datetime.timedelta(milliseconds=1))
         return sx, sy
 
-    def send_heartbeat(self):
+    def send_heartbeat(self) -> None:
         if not self.engine.connected:
             return
         self.engine.connection.send_heartbeat()
 
-    def check_receive_heartbeat(self):
+    def check_receive_heartbeat(self) -> None:
         ago = datetime.datetime.now() - self.engine.connection.last_data
         if ago > (self.receive_heartbeat_interval * 2):
             self.engine.log.debug(
@@ -435,17 +435,17 @@ class STOMP11(STOMP10):
         """
         self.connect(frame)
 
-    def subscribe(self, frame):
+    def subscribe(self, frame: Frame) -> None:
         if "id" not in frame.headers:
             raise ProtocolError("No 'id' specified for SUBSCRIBE command.")
         super().subscribe(frame)
 
-    def unsubscribe(self, frame):
+    def unsubscribe(self, frame: Frame) -> None:
         if "id" not in frame.headers:
             raise ProtocolError("No 'id' specified for UNSUBSCRIBE command.")
         super().unsubscribe(frame)
 
-    def ack(self, frame):
+    def ack(self, frame: Frame) -> None:
         if "subscription" not in frame.headers:
             raise ProtocolError("No 'subscription' specified for ACK command.")
         if "message-id" not in frame.headers:
@@ -454,7 +454,7 @@ class STOMP11(STOMP10):
             self.engine.connection, frame, id=frame.headers["subscription"]
         )
 
-    def nack(self, frame):
+    def nack(self, frame: Frame) -> None:
         """Roll back a message that a client did not consume.
 
         A ``NACK`` command indicates that a reliable subscriber received a frame but did
@@ -507,7 +507,7 @@ class STOMP12(STOMP11):
         response.headers.setdefault("version", "1.2")
         super().connect(frame, response)
 
-    def ack(self, frame):
+    def ack(self, frame: Frame) -> None:
         if "id" not in frame.headers:
             raise ProtocolError("No 'id' specified for ACK command.")
         if "message-id" not in frame.headers:
