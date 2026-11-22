@@ -93,16 +93,13 @@ class StompEngine:
     def process_frame(self, frame: Frame) -> None:
         self.log.debug("Processing frame: %s", frame)
         try:
-            receipt = self.protocol.process_frame(frame)
+            self.protocol.process_frame(frame)
         except Exception as err:
             self.log.exception("Error processing STOMP frame")
             try:
                 self.connection.send_frame(ErrorFrame(str(err), str(err).encode()))
             except Exception:  # pragma: no cover
                 self.log.exception("Could not send error frame")
-        else:
-            if receipt is not None:
-                self.connection.send_frame(receipt)
 
     def unbind(self):
         """Unbinds this connection from queue and topic managers (freeing up resources)

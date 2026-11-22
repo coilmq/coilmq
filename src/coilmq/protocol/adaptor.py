@@ -44,7 +44,7 @@ class AbstractSTOMP(abc.ABC):
         """
 
     @abc.abstractmethod
-    def process_frame(self, frame: Frame) -> ReceiptFrame | None:
+    def process_frame(self, frame: Frame) -> None:
         """Dispatches a frame to the appropriate internal method.
 
         :param frame: The incoming frame.
@@ -62,7 +62,7 @@ class STOMP10(AbstractSTOMP):
     def encoding(self) -> str:
         return "stomp1.0"
 
-    def process_frame(self, frame: Frame) -> ReceiptFrame | None:
+    def process_frame(self, frame: Frame) -> None:
         """Dispatches a frame to the appropriate internal method.
 
         :param frame: The incoming frame.
@@ -74,7 +74,7 @@ class STOMP10(AbstractSTOMP):
             self.connect(frame)
             # Do not send a ``RECEIPT`` frame for ``CONNECT`` even if the command
             # happens to include a ``receipt`` header.
-            return None
+            return
 
         if frame.cmd == frames.SEND:
             transaction = frame.headers.get("transaction")
@@ -115,19 +115,20 @@ class STOMP10(AbstractSTOMP):
         # the expected behavior WRT receipts and errors.  We will assume that the
         # ``RECEIPT`` frame should not be sent if there is an error.  We'll also assume
         # that a transaction should not preclude sending the receipt frame.
-        return self._frame_to_receipt_frame(frame)
+        self._send_receipt_frame(frame)
 
-    def _frame_to_receipt_frame(self, frame: Frame) -> ReceiptFrame | None:
-        """Return a ``RECEIPT`` frame if the client asked for one.
+    def _send_receipt_frame(self, frame: Frame) -> None:
+        """Send a ``RECEIPT`` frame to the client if the client asked for one.
+
+        If ``frame`` has a ``receipt`` header, this method will send a ``RECEIPT`` frame
+        with the same header to the client.
 
         :param frame: A command frame from a client.
 
-        :returns: If ``frame`` has a ``receipt`` header, this method will return a
-            ``RECEIPT`` frame with the same header, otherwise `None`.
-
         """
         receipt = frame.headers.get("receipt")
-        return ReceiptFrame(receipt=str(receipt)) if receipt is not None else None
+        if receipt is not None:
+            self.engine.connection.send_frame(ReceiptFrame(receipt=str(receipt)))
 
     def connect(self, frame: Frame, response: ConnectedFrame | None = None) -> None:
         """Establish a new connection.
@@ -335,12 +336,12 @@ class STOMP11(STOMP10):
     def encoding(self) -> str:
         return "stomp1.1"
 
-    def process_frame(self, frame: Frame) -> ReceiptFrame | None:
+    def process_frame(self, frame: Frame) -> None:
         if frame.cmd == frames.STOMP:
             self.stomp(frame)
             # Do not send a ``RECEIPT`` frame for ``STOMP`` even if the command happens
             # to include a ``receipt`` header.
-            return None
+            return
 
         if frame.cmd == frames.NACK:
             transaction = frame.headers.get("transaction")
@@ -355,7 +356,7 @@ class STOMP11(STOMP10):
         else:
             return super().process_frame(frame)
 
-        return self._frame_to_receipt_frame(frame)
+        self._send_receipt_frame(frame)
 
     def close(self) -> None:
         self.timer.stop()
