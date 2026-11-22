@@ -385,9 +385,8 @@ class STOMP11(STOMP10):
         return sx, sy
 
     def send_heartbeat(self) -> None:
-        if not self.engine.connected:
-            return
-        self.engine.connection.send_heartbeat()
+        if self.engine.connected:
+            self.engine.connection.send_heartbeat()
 
     def check_receive_heartbeat(self) -> None:
         ago = datetime.datetime.now() - self.engine.connection.last_data
