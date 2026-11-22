@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Final
 from coilmq.exception import ProtocolError
 from coilmq.protocol.adaptor import STOMP10, STOMP11, STOMP12
 from coilmq.protocol.version import Version
-from coilmq.util.frames import CONNECT, STOMP_CMD
+from coilmq.util.frames import CONNECT, STOMP
 
 if TYPE_CHECKING:
     from coilmq.protocol.adaptor import AbstractSTOMP
@@ -40,7 +40,7 @@ def protocol_class_from_first_frame(frame: Frame) -> type[AbstractSTOMP]:
         versions supported by the server.
 
     """
-    if frame.cmd in (CONNECT, STOMP_CMD) and "accept-version" in frame.headers:
+    if frame.cmd in (CONNECT, STOMP) and "accept-version" in frame.headers:
         # Convert a value like ``"1.0,1.1,1.2"`` into
         # ``{Version(1, 0), Version(1, 1), Version(1, 2)}``.
         try:
@@ -70,7 +70,7 @@ def protocol_class_from_first_frame(frame: Frame) -> type[AbstractSTOMP]:
         # STOMP 1.0 client.
         protocol_class = STOMP10
 
-    elif frame.cmd == STOMP_CMD:
+    elif frame.cmd == STOMP:
         # The ``STOMP`` command, on the other hand, requires the
         # ``accept-version`` header.
         msg = "No 'accept-version' specified for STOMP command"
