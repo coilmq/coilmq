@@ -36,42 +36,6 @@ class AbstractSTOMP(abc.ABC):
 
         """
 
-    @abc.abstractmethod
-    def connect(self, frame: Frame, response: ConnectedFrame | None = None) -> None:
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def send(self, frame):
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def subscribe(self, frame):
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def unsubscribe(self, frame):
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def begin(self, frame):
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def commit(self, frame):
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def abort(self, frame):
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def ack(self, frame):
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def disconnect(self, frame):
-        raise NotImplementedError
-
     def close(self) -> None:  # ruff: ignore[empty-method-without-abstract-decorator]
         """Close the adaptor by releasing any held resources."""
 
