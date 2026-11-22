@@ -234,10 +234,12 @@ class STOMP10(AbstractSTOMP):
         :raises ProtocolError: if required headers are missing.
 
         """
-        if not frame.transaction:
+        transaction = frame.headers.get("transaction")
+
+        if transaction is None:
             raise ProtocolError("Missing transaction for BEGIN command.")
 
-        self.engine.transactions[frame.transaction] = []
+        self.engine.transactions[transaction] = []
 
     def commit(self, frame: Frame) -> None:
         """Execute the specified pending transaction.
@@ -247,20 +249,22 @@ class STOMP10(AbstractSTOMP):
         :raises ProtocolError: if required headers are missing.
 
         """
-        if not frame.transaction:
+        transaction = frame.headers.get("transaction")
+
+        if transaction is None:
             raise ProtocolError("Missing transaction for COMMIT command.")
 
-        if not frame.transaction in self.engine.transactions:
-            raise ProtocolError(f"Invalid transaction: {frame.transaction}")
+        if transaction not in self.engine.transactions:
+            raise ProtocolError(f"Invalid transaction: {transaction}")
 
-        for tframe in self.engine.transactions[frame.transaction]:
+        for tframe in self.engine.transactions[transaction]:
             del tframe.headers["transaction"]
             self.process_frame(tframe)
 
         self.engine.queue_manager.clear_transaction_frames(
-            self.engine.connection, frame.transaction
+            self.engine.connection, transaction
         )
-        del self.engine.transactions[frame.transaction]
+        del self.engine.transactions[transaction]
 
     def abort(self, frame: Frame) -> None:
         """Roll back the specified pending transaction.
@@ -270,16 +274,18 @@ class STOMP10(AbstractSTOMP):
         :raises ProtocolError: if required headers are missing.
 
         """
-        if not frame.transaction:
+        transaction = frame.headers.get("transaction")
+
+        if transaction is None:
             raise ProtocolError("Missing transaction for ABORT command.")
 
-        if not frame.transaction in self.engine.transactions:
-            raise ProtocolError(f"Invalid transaction: {frame.transaction}")
+        if transaction not in self.engine.transactions:
+            raise ProtocolError(f"Invalid transaction: {transaction}")
 
         self.engine.queue_manager.resend_transaction_frames(
-            self.engine.connection, frame.transaction
+            self.engine.connection, transaction
         )
-        del self.engine.transactions[frame.transaction]
+        del self.engine.transactions[transaction]
 
     def ack(self, frame: Frame) -> None:
         """Retire a message that the client has acknowledged receiving.

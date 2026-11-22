@@ -135,10 +135,6 @@ class Frame:
             self.body == other.body,
         ])
 
-    @property
-    def transaction(self):
-        return self.headers.get("transaction")
-
     @classmethod
     def from_buffer(cls, buff, encoding: str | None = None) -> Self:
         """Construct a `Frame` from the contents of ``buff``.
