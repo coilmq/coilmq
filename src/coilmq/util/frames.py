@@ -25,27 +25,8 @@ COMMIT = "COMMIT"
 ABORT = "ABORT"
 ACK = "ACK"
 NACK = "NACK"
-STOMP_CMD = "STOMP"
+STOMP = "STOMP"
 DISCONNECT = "DISCONNECT"
-
-VALID_COMMANDS = [
-    MESSAGE,
-    CONNECT,
-    CONNECTED,
-    ERROR,
-    SEND,
-    SUBSCRIBE,
-    UNSUBSCRIBE,
-    BEGIN,
-    COMMIT,
-    ABORT,
-    ACK,
-    DISCONNECT,
-    NACK,
-    STOMP_CMD,
-]
-
-TEXT_PLAIN = "text/plain"
 
 
 class IncompleteFrame(Exception):
@@ -153,10 +134,6 @@ class Frame:
             self.headers == other.headers,
             self.body == other.body,
         ])
-
-    @property
-    def transaction(self):
-        return self.headers.get("transaction")
 
     @classmethod
     def from_buffer(cls, buff, encoding: str | None = None) -> Self:

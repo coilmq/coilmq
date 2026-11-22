@@ -70,7 +70,7 @@ class Client:
         headers = {"accept-version": accept_version}
         if extra_headers is not None:
             headers.update(extra_headers)
-        self._sending.put(Frame(frames.STOMP_CMD, headers=headers))
+        self._sending.put(Frame(frames.STOMP, headers=headers))
         self._rsock.sendall(b"\0")
 
     def send(

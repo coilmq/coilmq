@@ -5,33 +5,33 @@ from typing import TYPE_CHECKING, Final
 from coilmq.exception import ProtocolError
 from coilmq.protocol.adaptor import STOMP10, STOMP11, STOMP12
 from coilmq.protocol.version import Version
-from coilmq.util.frames import CONNECT, STOMP_CMD
+from coilmq.util.frames import CONNECT, STOMP
 
 if TYPE_CHECKING:
-    from coilmq.protocol.adaptor import STOMP
+    from coilmq.protocol.adaptor import AbstractSTOMP
     from coilmq.util.frames import Frame
 
-SUPPORTED_VERSIONS: Final[dict[Version, type[STOMP]]] = {
+SUPPORTED_VERSIONS: Final[dict[Version, type[AbstractSTOMP]]] = {
     Version.from_str("1.0"): STOMP10,
     Version.from_str("1.1"): STOMP11,
     Version.from_str("1.2"): STOMP12,
 }
 
 
-def protocol_class_from_first_frame(frame: Frame) -> type[STOMP]:
+def protocol_class_from_first_frame(frame: Frame) -> type[AbstractSTOMP]:
     """Return the latest compatible protocol for a given ``CONNECT`` frame.
 
     STOMP requires a client to send a ``CONNECT`` frame after the socket
     connection is established.  (This function also recognizes the ``STOMP``
     command, introduced in STOMP 1.1, as an alias for the ``CONNECT`` command.)
     This function inspects the contents of the first frame and returns an
-    instance of a :class:`STOMP` concrete implementation that handles the latest
-    protocol version supported by both the client and the server.
+    instance of a :class:`AbstractSTOMP` concrete implementation that handles
+    the latest protocol version supported by both the client and the server.
 
     :param frame: the first frame received from a new connection
 
-    :returns: A :class:`STOMP` subclass whose version corresponds to the maximum
-        common version accepted by the client.
+    :returns: An :class:`STOMP` subclass whose version corresponds to the
+        maximum common version accepted by the client.
 
     :raises: :class:`ProtocolError` if the frame's command is not one of
         ``CONNECT`` or ``STOMP``, if a ``STOMP`` frame is missing the ``accept-version``
@@ -40,7 +40,7 @@ def protocol_class_from_first_frame(frame: Frame) -> type[STOMP]:
         versions supported by the server.
 
     """
-    if frame.cmd in (CONNECT, STOMP_CMD) and "accept-version" in frame.headers:
+    if frame.cmd in (CONNECT, STOMP) and "accept-version" in frame.headers:
         # Convert a value like ``"1.0,1.1,1.2"`` into
         # ``{Version(1, 0), Version(1, 1), Version(1, 2)}``.
         try:
@@ -70,7 +70,7 @@ def protocol_class_from_first_frame(frame: Frame) -> type[STOMP]:
         # STOMP 1.0 client.
         protocol_class = STOMP10
 
-    elif frame.cmd == STOMP_CMD:
+    elif frame.cmd == STOMP:
         # The ``STOMP`` command, on the other hand, requires the
         # ``accept-version`` header.
         msg = "No 'accept-version' specified for STOMP command"
