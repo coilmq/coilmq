@@ -143,8 +143,6 @@ class STOMP10(AbstractSTOMP):
         :raises AuthError: if the frame's ``login` and/or ``passcode`` are rejected.
 
         """
-        self.engine.log.debug("CONNECT")
-
         if self.engine.authenticator and (
             (login := frame.headers.get("login")) is None
             or (passcode := frame.headers.get("passcode")) is None
@@ -310,7 +308,6 @@ class STOMP10(AbstractSTOMP):
                   handle a client silently closing the connection.
 
         """
-        self.engine.log.debug("Disconnect")
         self.engine.unbind()
 
 
