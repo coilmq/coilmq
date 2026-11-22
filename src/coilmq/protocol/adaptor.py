@@ -19,10 +19,25 @@ if TYPE_CHECKING:
 
 
 class AbstractSTOMP(abc.ABC):
+    """Abstract base class for STOMP frame adaptors.
+
+    Subclasses of `AbstractSTOMP` adapt a single STOMP version's semantics to CoilMQ's
+    internal machinery.
+
+    :param engine: The engine associated with the adaptor.
+
+    """
+
     @property
     @abc.abstractmethod
     def encoding(self) -> str:
-        """Return the name of the header encoding."""
+        """Return the name of the header encoding.
+
+        Each version of STOMP specifies slightly different, incompatible methods for
+        encoding a frame's headers.  Subclasses of `AbstractSTOMP` return the name of
+        the encoding used by the version of STOMP supported by the class.
+
+        """
 
     def __init__(self, engine: StompEngine, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -41,6 +56,8 @@ class AbstractSTOMP(abc.ABC):
 
 
 class STOMP10(AbstractSTOMP):
+    """Adapt STOMP 1.0 to CoilMQ's internal machinery."""
+
     @property
     def encoding(self) -> str:
         return "stomp1.0"
@@ -106,7 +123,19 @@ class STOMP10(AbstractSTOMP):
         return ReceiptFrame(receipt=str(receipt)) if receipt is not None else None
 
     def connect(self, frame: Frame, response: ConnectedFrame | None = None) -> None:
-        """Handle CONNECT command: Establishes a new connection and checks auth (if applicable)."""
+        """Establish a new connection.
+
+        For servers with authentication enabled, check the frame's ``login`` and
+        ``passcode`` headers.
+
+        :param frame: A ``CONNECT`` frame.
+        :param response: A ``CONNECTED`` frame, if this method is called from
+            the handler for a greater version of the protocol specification or
+            `None`, if this method is the first to see the ``CONNECT`` frame.
+
+        :raises AuthError: if the frame's ``login` and/or ``passcode`` are rejected.
+
+        """
         self.engine.log.debug("CONNECT")
 
         if self.engine.authenticator and (
@@ -125,7 +154,13 @@ class STOMP10(AbstractSTOMP):
         self.engine.connection.send_frame(response)
 
     def send(self, frame):
-        """Handle the SEND command: Delivers a message to a queue or topic (default)."""
+        """Deliver a message to a queue or topic.
+
+        :param frame: A ``SEND`` frame.
+
+        :raises ProtocolError: if required headers are missing.
+
+        """
         dest = frame.headers.get("destination")
         if not dest:
             raise ProtocolError("Missing destination for SEND command.")
@@ -136,7 +171,13 @@ class STOMP10(AbstractSTOMP):
             self.engine.topic_manager.send(frame)
 
     def subscribe(self, frame):
-        """Handle the SUBSCRIBE command: Adds this connection to destination."""
+        """Add this connection to a destination.
+
+        :param frame: A ``SUBSCRIBE`` frame.
+
+        :raises ProtocolError: if required headers are missing.
+
+        """
         ack = frame.headers.get("ack")
         reliable = ack and ack.lower() == "client"
 
@@ -157,7 +198,13 @@ class STOMP10(AbstractSTOMP):
             )
 
     def unsubscribe(self, frame):
-        """Handle the UNSUBSCRIBE command: Removes this connection from destination."""
+        """Remove this connection from a destination.
+
+        :param frame: An ``UNSUBSCRIBE`` frame.
+
+        :raises ProtocolError: if required headers are missing.
+
+        """
         dest = frame.headers.get("destination")
         if not dest:
             raise ProtocolError("Missing destination for UNSUBSCRIBE command.")
@@ -173,14 +220,26 @@ class STOMP10(AbstractSTOMP):
             )
 
     def begin(self, frame):
-        """Handles BEGIN command: Starts a new transaction."""
+        """Start a new transaction.
+
+        :param frame: A ``BEGIN`` frame.
+
+        :raises ProtocolError: if required headers are missing.
+
+        """
         if not frame.transaction:
             raise ProtocolError("Missing transaction for BEGIN command.")
 
         self.engine.transactions[frame.transaction] = []
 
     def commit(self, frame):
-        """Handles COMMIT command: Commits specified transaction."""
+        """Execute the specified pending transaction.
+
+        :param frame: A ``COMMIT`` frame.
+
+        :raises ProtocolError: if required headers are missing.
+
+        """
         if not frame.transaction:
             raise ProtocolError("Missing transaction for COMMIT command.")
 
@@ -197,7 +256,13 @@ class STOMP10(AbstractSTOMP):
         del self.engine.transactions[frame.transaction]
 
     def abort(self, frame):
-        """Handles ABORT command: Rolls back specified transaction."""
+        """Roll back the specified pending transaction.
+
+        :param frame: An ``ABORT`` frame.
+
+        :raises ProtocolError: if required headers are missing.
+
+        """
         if not frame.transaction:
             raise ProtocolError("Missing transaction for ABORT command.")
 
@@ -210,7 +275,13 @@ class STOMP10(AbstractSTOMP):
         del self.engine.transactions[frame.transaction]
 
     def ack(self, frame):
-        """Handles the ACK command: Acknowledges receipt of a message."""
+        """Retire a message that the client has acknowledged receiving.
+
+        :param frame: An ``ACK`` frame.
+
+        :raises ProtocolError: if required headers are missing.
+
+        """
         if "message-id" not in frame.headers:
             raise ProtocolError("No message-id specified for ACK command.")
         self.engine.queue_manager.ack(
@@ -218,16 +289,21 @@ class STOMP10(AbstractSTOMP):
         )
 
     def disconnect(self, frame):
-        """Handles the DISCONNECT command: Unbinds the connection.
+        """Unbind the connection.
 
-        Clients are supposed to send this command, but in practice it should not be
-        relied upon.
+        :param frame: A ``DISCONNECT`` frame.
+
+        .. Note:: Clients are supposed to send this command.  In practice, CoilMQ can
+                  handle a client silently closing the connection.
+
         """
         self.engine.log.debug("Disconnect")
         self.engine.unbind()
 
 
 class STOMP11(STOMP10):
+    """Adapt STOMP 1.1 to CoilMQ's internal machinery."""
+
     @property
     def encoding(self) -> str:
         return "stomp1.1"
@@ -287,6 +363,20 @@ class STOMP11(STOMP10):
             self.engine.unbind()
 
     def connect(self, frame: Frame, response: ConnectedFrame | None = None) -> None:
+        """Establish a new connection.
+
+        For servers with authentication enabled, check the frame's ``login`` and
+        ``passcode`` headers.
+
+        :param frame: A ``CONNECT`` frame.
+        :param response: A ``CONNECTED`` frame, if this method is called from
+            the handler for a greater version of the protocol specification or
+            `None`, if this method is the first to see the ``CONNECT`` frame.
+
+        :raises AuthError: if the frame's ``login` and/or ``passcode`` are rejected.
+        :raises ProtocolError: if the frame's ``heart-beat`` header is malformed.
+
+        """
         response = response or ConnectedFrame(str(uuid.uuid4()))
         response.headers.setdefault("version", "1.1")
         response.headers["server"] = f"coilmq/{importlib.metadata.version('coilmq')}"
@@ -317,8 +407,16 @@ class STOMP11(STOMP10):
         self.connect(frame)
 
     def nack(self, frame):
-        """Handles the NACK command: Unacknowledges receipt of a message.
-        For now, this is just a placeholder to implement this version of the protocol.
+        """Roll back a message that a client did not consume.
+
+        A ``NACK`` command indicates that a reliable subscriber received a frame but did
+        not consume it.  That frame is eligible for delivery to another subscriber.
+
+        :param frame: A ``NACK`` frame.
+
+        .. Note:: This method is a placeholder.  CoilMQ does not implement the ``NACK``
+                  command at this time.
+
         """
         if not frame.headers.get("message-id"):
             raise ProtocolError("No message-id specified for NACK command.")
@@ -371,11 +469,28 @@ class STOMP11(STOMP10):
 
 
 class STOMP12(STOMP11):
+    """Adapt STOMP 1.2 to CoilMQ's internal machinery."""
+
     @property
     def encoding(self) -> str:
         return "stomp1.2"
 
     def connect(self, frame: Frame, response: ConnectedFrame | None = None) -> None:
+        """Establish a new connection.
+
+        For servers with authentication enabled, check the frame's ``login`` and
+        ``passcode`` headers.
+
+        :param frame: A ``CONNECT`` frame.
+        :param response: A ``CONNECTED`` frame, if this method is called from
+            the handler for a greater version of the protocol specification or
+            `None`, if this method is the first to see the ``CONNECT`` frame.
+
+        :raises AuthError: if the frame's ``login` and/or ``passcode`` are rejected.
+        :raises ProtocolError: if the frame's ``heart-beat`` header is malformed or
+            required headers are missing.
+
+        """
         host = frame.headers.get("host")
         if not host:
             raise ProtocolError('"host" header is required')
