@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from coilmq.util.frames import Frame
 
 
-class STOMP(abc.ABC):
+class AbstractSTOMP(abc.ABC):
     @property
     @abc.abstractmethod
     def encoding(self) -> str:
@@ -76,7 +76,7 @@ class STOMP(abc.ABC):
         raise NotImplementedError
 
 
-class STOMP10(STOMP):
+class STOMP10(AbstractSTOMP):
     @property
     def encoding(self) -> str:
         return "stomp1.0"

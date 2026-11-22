@@ -13,7 +13,7 @@ from coilmq.util.frames import CONNECT, SEND, STOMP_CMD, Frame
 if TYPE_CHECKING:
     from contextlib import AbstractContextManager
 
-    from coilmq.protocol import STOMP
+    from coilmq.protocol import AbstractSTOMP
 
 
 @pytest.mark.parametrize(
@@ -86,7 +86,8 @@ if TYPE_CHECKING:
 )
 def test_protocol_class_from_first_frame(
     frame: Frame,
-    expectation: AbstractContextManager[type[STOMP]] | pytest.RaisesExc[ProtocolError],
+    expectation: AbstractContextManager[type[AbstractSTOMP]]
+    | pytest.RaisesExc[ProtocolError],
 ) -> None:
     """Verify that :func:`protocol_class_from_first_frame` returns the right version."""
     with expectation as e:
