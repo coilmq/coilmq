@@ -19,6 +19,8 @@ jobs:
         uses: astral-sh/setup-uv@v10.4.0
         with:
           enable-cache: false
+          version: "latest-known"
+          require-checksums: true
 
       - name: Build
         run: uv build
@@ -43,6 +45,8 @@ jobs:
         uses: astral-sh/setup-uv@v10.4.0
         with:
           enable-cache: false
+          version: "latest-known"
+          require-checksums: true
 
       - name: Download distributions artifact
         uses: actions/download-artifact@v8.0.2
