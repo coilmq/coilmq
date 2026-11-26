@@ -21,8 +21,7 @@ else:
 import click
 
 import coilmq.util.codec
-from coilmq.config import config as global_config
-from coilmq.config import init_config, init_logging, resolve_name
+from coilmq.config import CONFIG, init_config, init_logging, resolve_name
 from coilmq.queue import QueueManager
 from coilmq.server.socket_server import ThreadedStompServer
 from coilmq.topic import TopicManager
@@ -65,7 +64,7 @@ def server_from_config(config=None, server_class=None, additional_kwargs=None):
     :rtype: coilmq.server.socket_server.StompServer
     """
     if not config:
-        config = global_config
+        config = CONFIG
 
     queue_store_factory = resolve_name(config.get("coilmq", "qstore.factory"))
     subscriber_scheduler_factory = resolve_name(
@@ -140,9 +139,7 @@ def context_serve(
             logger.info("Stomp server listening on %s:%s", *server.server_address)
 
             if debug:
-                poll_interval = float(
-                    global_config.get("coilmq", "debug.stats_poll_interval")
-                )
+                poll_interval = float(CONFIG.get("coilmq", "debug.stats_poll_interval"))
                 if poll_interval:  # Setting poll_interval to 0 effectively disables it.
 
                     def diagnostic_loop(server):
@@ -201,10 +198,10 @@ def _main(
     init_config(config)
 
     if host is not None:
-        global_config.set("coilmq", "listen_addr", host)
+        CONFIG.set("coilmq", "listen_addr", host)
 
     if port is not None:
-        global_config.set("coilmq", "listen_port", str(port))
+        CONFIG.set("coilmq", "listen_port", str(port))
 
         if daemon and is_nt:
             warnings.warn(

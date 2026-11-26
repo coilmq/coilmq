@@ -1,13 +1,8 @@
 """Configuration support functionality.
 
-The global ``config`` object, a :py:class:`configparser.ConfigParser`, is initialized
-with default configuration from the ``defaults.cfg`` file, which is located in this package.
-In order to ensure that the config contains custom values, you must call the :func:`init_config`
-function during application initialization::
-
-    from coilmq.config import config, init_config
-    init_config('/path/to/config.cfg')
-    config.getint('listen_port')
+The global `CONFIG` object, a :py:class:`configparser.ConfigParser`, is initialized from
+the default configuration file, ``defaults.cfg``, embedded in the `coilmq.config`
+module.
 
 """
 
@@ -39,20 +34,28 @@ See the License for the specific language governing permissions and
 limitations under the License."""
 
 #: The global configuration object containing the default configuration.
-config: Final[ConfigParser] = ConfigParser()
+CONFIG: Final[ConfigParser] = ConfigParser()
 with as_file(
     files("coilmq.config").joinpath("defaults.cfg")
 ) as filename, filename.open() as src:
-    config.read_file(src)
+    CONFIG.read_file(src)
 
 
 def init_config(config_file=None):
-    """Initialize the configuration from a config file.
+    r"""Override and/or add to the global configuration.
 
-    The values in :paramref:`config_file` will override those already loaded from the default
-    configuration file.
+    The values in ``config_file`` will override and/or add to those in `CONFIG` that
+    were loaded from the embedded default configuration file.
 
-    This method does not setup logging.
+        >>> from coilmq.config import CONFIG, init_config
+        >>> CONFIG.getint("coilmq", "listen_port")
+        61613
+        >>> from tempfile import NamedTemporaryFile
+        >>> with NamedTemporaryFile("w") as tmp:
+        ...     print("[coilmq]\nlisten_port = 12345", file=tmp, flush=True)
+        ...     init_config(tmp.name)
+        >>> CONFIG.getint("coilmq", "listen_port")
+        12345
 
     :param config_file: The path to a configuration file.
     :type config_file: str
@@ -62,7 +65,7 @@ def init_config(config_file=None):
     .. seealso:: :func:`init_logging`
     """
     if config_file and os.path.exists(config_file):
-        read = config.read([config_file])
+        read = CONFIG.read([config_file])
         if not read:
             raise ValueError(f"Could not read configuration from file: {config_file}")
 

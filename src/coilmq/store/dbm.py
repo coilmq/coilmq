@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 
 import wrapt
 
-from coilmq.config import config
+from coilmq.config import CONFIG
 from coilmq.exception import ConfigError
 from coilmq.store import QueueStore
 
@@ -39,9 +39,9 @@ limitations under the License."""
 def make_dbm():
     """Creates a DBM queue store, pulling config values from the CoilMQ configuration."""
     try:
-        data_dir = config.get("coilmq", "qstore.dbm.data_dir")
-        cp_ops = config.getint("coilmq", "qstore.dbm.checkpoint_operations")
-        cp_timeout = config.getint("coilmq", "qstore.dbm.checkpoint_timeout")
+        data_dir = CONFIG.get("coilmq", "qstore.dbm.data_dir")
+        cp_ops = CONFIG.getint("coilmq", "qstore.dbm.checkpoint_operations")
+        cp_timeout = CONFIG.getint("coilmq", "qstore.dbm.checkpoint_timeout")
     except NoOptionError as e:
         raise ConfigError(f"Missing configuration parameter: {e}") from e
 

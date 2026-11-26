@@ -4,7 +4,7 @@ from sqlalchemy import MetaData, engine_from_config
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.sql import distinct, func, select
 
-from coilmq.config import config
+from coilmq.config import CONFIG
 from coilmq.store import QueueStore
 from coilmq.store.sa import meta, model
 
@@ -25,7 +25,7 @@ limitations under the License."""
 
 def make_sa():
     """Factory to creates a SQLAlchemy queue store, pulling config values from the CoilMQ configuration."""
-    configuration = dict(config.items("coilmq"))
+    configuration = dict(CONFIG.items("coilmq"))
     engine = engine_from_config(configuration, "qstore.sqlalchemy.")
     init_model(engine)
     store = SAQueue()

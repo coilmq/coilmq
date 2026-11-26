@@ -7,7 +7,7 @@ from configparser import ConfigParser, NoSectionError, ParsingError
 from typing import TYPE_CHECKING, Final, TextIO
 
 from coilmq.auth import Authenticator
-from coilmq.config import config
+from coilmq.config import CONFIG
 from coilmq.exception import ConfigError
 
 if TYPE_CHECKING:
@@ -63,7 +63,7 @@ def make_simple() -> Authenticator:
         does not contain an ``[auth]`` section.
 
     """
-    authfile = config.get("coilmq", "auth.simple.file")
+    authfile = CONFIG.get("coilmq", "auth.simple.file")
     if not authfile:
         raise ConfigError("Missing configuration parameter: auth.simple.file")
     return SimpleAuthenticator.from_ini(authfile)
