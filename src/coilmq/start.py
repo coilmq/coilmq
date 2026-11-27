@@ -95,42 +95,17 @@ def server_from_config(config=None, server_class=None, additional_kwargs=None):
 
 
 def serve(
-    configfile,
-    listen_addr,
-    listen_port,
-    logfile,
-    debug,
-    daemon,
-    uid,
-    gid,
-    pidfile,
-    umask,
-    rundir,
+    config: str | None,
+    log_filename: str | None,
+    debug: bool,
 ):
-    """Takes a context object, which implements the __enter__/__exit__ "with" interface
-    and starts a server within that context.
-
-    This method is a refactored single-place for handling the server-run code whether
-    running in daemon or non-daemon mode.  It is invoked with a dummy (passthrough)
-    context object for the non-daemon use case.
-
-    :param options: The compiled collection of options that need to be parsed.
-    :type options: configparser.ConfigParser
-    :param context: The context object that implements __enter__/__exit__ "with"
-        methods.
-    :type context: object
-
-    :raises Exception: Any underlying exception will be logged but then re-raised.
-
-    .. seealso:: :func:`server_from_config`
-    """
     log_level = logging.DEBUG if debug else logging.INFO
 
     # There's a possibility here that init_logging() will throw an exception.  If it does,
     # AND we're in a daemon context, then we're not going to be able to do anything with it.
     # We've got no stderr/stdout here; and so (to my knowledge) no reliable (& cross-platform),
     # way to display errors.
-    init_logging(logfile=logfile, loglevel=log_level, configfile=configfile)
+    init_logging(logfile=log_filename, loglevel=log_level, configfile=config)
 
     server = server_from_config()
 
@@ -291,19 +266,7 @@ def main(
     )
 
     with context, coilmq.util.codec.register():
-        serve(
-            config,
-            host,
-            port,
-            logfile,
-            debug,
-            daemon,
-            uid,
-            gid,
-            pidfile,
-            umask,
-            rundir,
-        )
+        serve(config, logfile, debug)
 
 
 class RepeatThread(threading.Timer):
