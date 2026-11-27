@@ -90,7 +90,7 @@ def serve(
     log_filename: str | None,
     log_format: str | None,
     log_level: int | None,
-):
+) -> None:
     """Start the STOMP server.
 
     This function uses the provided arguments to configure logging then starts the STOMP
@@ -324,7 +324,7 @@ def main(
     pidfile: str | None,
     umask: int | None,
     rundir: str,
-):
+) -> None:
     """Run a CoilMQ server."""
     init_config(config)
 
