@@ -159,66 +159,6 @@ def serve(
         server.server_close()
 
 
-def _main(
-    config=None,
-    host=None,
-    port=None,
-    logfile=None,
-    debug=None,
-    daemon=None,
-    uid=None,
-    gid=None,
-    pidfile: str | None = None,
-    umask: int | None = None,
-    rundir: str | None = None,
-):
-
-    # Note that we must initialize the configuration before we enter the context
-    # block; however, we _cannot_ initialize logging until we are in the context block
-    # (so we defer that until the context_serve call.)
-    init_config(config)
-
-    if host is not None:
-        CONFIG.set("coilmq", "listen_addr", host)
-
-    if port is not None:
-        CONFIG.set("coilmq", "listen_port", str(port))
-
-        if daemon and is_nt:
-            warnings.warn(
-                "Daemon context is not available for NT platform", stacklevel=2
-            )
-
-    # in an on-daemon mode, we use a dummy context object
-    # so we can use the same run-server code as the daemon version.
-    context = (
-        pydaemon.DaemonContext(
-            uid=uid,
-            gid=gid,
-            pidfile=None if pidfile is None else pid.PidFile(pidname=pidfile),
-            umask=0 if umask is None else umask,
-            working_directory="/" if rundir is None else rundir,
-        )
-        if daemon and pydaemon
-        else nullcontext()
-    )
-
-    with context, coilmq.util.codec.register():
-        serve(
-            config,
-            host,
-            port,
-            logfile,
-            debug,
-            daemon,
-            uid,
-            gid,
-            pidfile,
-            umask,
-            rundir,
-        )
-
-
 @click.command()
 @click.option(
     "-c",
@@ -307,9 +247,63 @@ def _main(
     help="daemon process working directory",
     metavar="DIR",
 )
-def main(config, host, port, logfile, debug, daemon, uid, gid, pidfile, umask, rundir):
+def main(
+    config: str | None,
+    host: str | None,
+    port: int | None,
+    logfile: str | None,
+    debug: bool,
+    daemon: bool,
+    uid: int | None,
+    gid: int | None,
+    pidfile: str | None,
+    umask: int | None,
+    rundir: str,
+):
     """Run a CoilMQ server."""
-    _main(**locals())
+    # Initialize the configuration before entering the context block.  Wait until inside
+    # the context block to initialize logging.
+    init_config(config)
+
+    if host is not None:
+        CONFIG.set("coilmq", "listen_addr", host)
+
+    if port is not None:
+        CONFIG.set("coilmq", "listen_port", str(port))
+
+        if daemon and is_nt:
+            warnings.warn(
+                "Daemon context is not available for NT platform", stacklevel=2
+            )
+
+    # in an on-daemon mode, we use a dummy context object
+    # so we can use the same run-server code as the daemon version.
+    context = (
+        pydaemon.DaemonContext(
+            uid=uid,
+            gid=gid,
+            pidfile=None if pidfile is None else pid.PidFile(pidname=pidfile),
+            umask=0 if umask is None else umask,
+            working_directory=rundir,
+        )
+        if daemon and pydaemon
+        else nullcontext()
+    )
+
+    with context, coilmq.util.codec.register():
+        serve(
+            config,
+            host,
+            port,
+            logfile,
+            debug,
+            daemon,
+            uid,
+            gid,
+            pidfile,
+            umask,
+            rundir,
+        )
 
 
 class RepeatThread(threading.Timer):
