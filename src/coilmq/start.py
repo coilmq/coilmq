@@ -172,6 +172,23 @@ def serve(
         server.server_close()
 
 
+class RepeatThread(threading.Timer):
+    def run(self) -> None:
+        while not self.finished.wait(self.interval):
+            self.function(*self.args, **self.kwargs)
+
+
+def stats_loop(server: ThreadedStompServer) -> None:
+    LOGGER.debug("Stats heartbeat -------------------------------")
+    for destination in server.queue_manager.store.destinations():
+        LOGGER.debug(
+            "Queue %s: size=%s, subscribers=%s",
+            destination,
+            server.queue_manager.store.size(destination),
+            server.queue_manager.subscriber_count(destination),
+        )
+
+
 class LogLevel(enum.IntEnum):
     CRITICAL = logging.CRITICAL
     FATAL = logging.FATAL
@@ -349,23 +366,6 @@ def main(
 
     with context, coilmq.util.codec.register():
         serve(config, log, log_filename, log_format, log_level)
-
-
-class RepeatThread(threading.Timer):
-    def run(self) -> None:
-        while not self.finished.wait(self.interval):
-            self.function(*self.args, **self.kwargs)
-
-
-def stats_loop(server: ThreadedStompServer) -> None:
-    LOGGER.debug("Stats heartbeat -------------------------------")
-    for destination in server.queue_manager.store.destinations():
-        LOGGER.debug(
-            "Queue %s: size=%s, subscribers=%s",
-            destination,
-            server.queue_manager.store.size(destination),
-            server.queue_manager.subscriber_count(destination),
-        )
 
 
 if __name__ == "__main__":
