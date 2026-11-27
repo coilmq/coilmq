@@ -6,7 +6,7 @@ import logging
 import os
 import threading
 import warnings
-from contextlib import contextmanager
+from contextlib import nullcontext
 from typing import TYPE_CHECKING
 
 is_nt = os.name == "nt"
@@ -94,8 +94,7 @@ def server_from_config(config=None, server_class=None, additional_kwargs=None):
     return server
 
 
-def context_serve(
-    context,
+def serve(
     configfile,
     listen_addr,
     listen_port,
@@ -127,38 +126,37 @@ def context_serve(
     """
     log_level = logging.DEBUG if debug else logging.INFO
 
-    with context, coilmq.util.codec.register():
-        # There's a possibility here that init_logging() will throw an exception.  If it does,
-        # AND we're in a daemon context, then we're not going to be able to do anything with it.
-        # We've got no stderr/stdout here; and so (to my knowledge) no reliable (& cross-platform),
-        # way to display errors.
-        init_logging(logfile=logfile, loglevel=log_level, configfile=configfile)
+    # There's a possibility here that init_logging() will throw an exception.  If it does,
+    # AND we're in a daemon context, then we're not going to be able to do anything with it.
+    # We've got no stderr/stdout here; and so (to my knowledge) no reliable (& cross-platform),
+    # way to display errors.
+    init_logging(logfile=logfile, loglevel=log_level, configfile=configfile)
 
-        server = server_from_config()
+    server = server_from_config()
 
-        interval = CONFIG.getfloat("coilmq", "debug.stats_poll_interval")
-        stats_thread = RepeatThread(interval, stats_loop, (server,))
-        stats_thread.name = "DiagnosticThread"
-        stats_thread.daemon = True
+    interval = CONFIG.getfloat("coilmq", "debug.stats_poll_interval")
+    stats_thread = RepeatThread(interval, stats_loop, (server,))
+    stats_thread.name = "DiagnosticThread"
+    stats_thread.daemon = True
+
+    try:
+        if log_level <= logging.DEBUG and interval > 0:
+            stats_thread.start()
+
+        LOGGER.info("STOMP server listening on %s:%s", *server.server_address)
 
         try:
-            if log_level <= logging.DEBUG and interval > 0:
-                stats_thread.start()
-
-            LOGGER.info("STOMP server listening on %s:%s", *server.server_address)
-
-            try:
-                server.serve_forever()
-            finally:
-                stats_thread.cancel()
-
-        except (KeyboardInterrupt, SystemExit):
-            LOGGER.info("Stomp server stopped by user interrupt.")
-        except Exception:
-            LOGGER.exception("Stomp server stopped due to error")
+            server.serve_forever()
         finally:
-            server.shutdown()
-            server.server_close()
+            stats_thread.cancel()
+
+    except (KeyboardInterrupt, SystemExit):
+        LOGGER.info("Stomp server stopped by user interrupt.")
+    except Exception:
+        LOGGER.exception("Stomp server stopped due to error")
+    finally:
+        server.shutdown()
+        server.server_close()
 
 
 def _main(
@@ -202,23 +200,23 @@ def _main(
             working_directory="/" if rundir is None else rundir,
         )
         if daemon and pydaemon
-        else contextmanager(lambda: (yield))()
+        else nullcontext()
     )
 
-    context_serve(
-        context,
-        config,
-        host,
-        port,
-        logfile,
-        debug,
-        daemon,
-        uid,
-        gid,
-        pidfile,
-        umask,
-        rundir,
-    )
+    with context, coilmq.util.codec.register():
+        serve(
+            config,
+            host,
+            port,
+            logfile,
+            debug,
+            daemon,
+            uid,
+            gid,
+            pidfile,
+            umask,
+            rundir,
+        )
 
 
 @click.command()
