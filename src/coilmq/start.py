@@ -9,15 +9,9 @@ import warnings
 from contextlib import nullcontext
 from typing import TYPE_CHECKING
 
-is_nt = os.name == "nt"
-
-if not is_nt:
-    import daemon as pydaemon
-    import pid
-else:
-    pydaemon = pid = None
-
 import click
+import daemon as pydaemon
+import pid
 from click_option_group import optgroup
 
 import coilmq.util.codec
@@ -246,24 +240,20 @@ def main(
     if port is not None:
         CONFIG.set("coilmq", "listen_port", str(port))
 
-        if daemon and is_nt:
-            warnings.warn(
-                "Daemon context is not available for NT platform", stacklevel=2
-            )
+    if daemon and os.name != "posix":
+        warnings.warn("daemon mode is only supported on POSIX")
+        daemon = False
 
-    # in an on-daemon mode, we use a dummy context object
-    # so we can use the same run-server code as the daemon version.
-    context = (
-        pydaemon.DaemonContext(
+    if daemon:
+        context = pydaemon.DaemonContext(
             uid=uid,
             gid=gid,
             pidfile=None if pidfile is None else pid.PidFile(pidname=pidfile),
             umask=0 if umask is None else umask,
             working_directory=rundir,
         )
-        if daemon and pydaemon
-        else nullcontext()
-    )
+    else:
+        context = nullcontext()
 
     with context, coilmq.util.codec.register():
         serve(config, logfile, debug)
