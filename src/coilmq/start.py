@@ -19,6 +19,7 @@ else:
     pydaemon = pid = None
 
 import click
+from click_option_group import optgroup
 
 import coilmq.util.codec
 from coilmq.config import CONFIG, init_config, init_logging, resolve_name
@@ -245,7 +246,11 @@ def _main(
     help="read configuration from CONFIG; extends the default configuration",
     metavar="CONFIG",
 )
-@click.option(
+@optgroup.group(
+    "Server configuration",
+    help="These options override settings loaded from configuration files.",
+)
+@optgroup.option(
     "-b",
     "--host",
     default=CONFIG.get("coilmq", "listen_addr"),
@@ -253,7 +258,7 @@ def _main(
     help="listen on the specified address; overrides coilmq.listen_addr in CONFIG",
     metavar="ADDR",
 )
-@click.option(
+@optgroup.option(
     "-p",
     "--port",
     default=int(CONFIG.get("coilmq", "listen_port")),
@@ -262,19 +267,27 @@ def _main(
     type=int,
     metavar="PORT",
 )
-@click.option(
+@optgroup.group(
+    "Logging configuration",
+    help="These options are ignored if CONFIG has a [loggers] section.",
+)
+@optgroup.option(
     "-l",
     "--logfile",
     help="Log to specified file (unless logging configured in config file).",
     metavar="FILE",
 )
-@click.option(
+@optgroup.option(
     "--debug",
     default=False,
     is_flag=True,
     help="Sets logging to debug (unless logging configured in config file).",
 )
-@click.option(
+@optgroup.group(
+    name="Daemon configuration",
+    help="These options are ignored on non-POSIX operating systems.",
+)
+@optgroup.option(
     "-d",
     "--daemon",
     default=False,
@@ -282,32 +295,32 @@ def _main(
     is_flag=True,
     help="run server as a daemon",
 )
-@click.option(
+@optgroup.option(
     "-u",
     "--uid",
     help="daemon process UID",
     type=int,
     metavar="UID",
 )
-@click.option(
+@optgroup.option(
     "-g",
     "--gid",
     help="daemon process GID",
     type=int,
     metavar="GID",
 )
-@click.option(
+@optgroup.option(
     "--pidfile",
     help="file path for the PID file that the daemon will create",
     metavar="FILE",
 )
-@click.option(
+@optgroup.option(
     "--umask",
     help="umask, in octal, to apply to the daemon process",
     type=lambda x: int(x, 8),
     metavar="MASK",
 )
-@click.option(
+@optgroup.option(
     "--rundir",
     default="/",
     show_default=True,
