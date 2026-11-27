@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import os
 import threading
-import time
 import warnings
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
@@ -44,7 +43,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License."""
 
-logger = logging.getLogger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 
 def server_from_config(config=None, server_class=None, additional_kwargs=None):
@@ -91,7 +90,7 @@ def server_from_config(config=None, server_class=None, additional_kwargs=None):
         topic_manager=TopicManager(),
         authenticator=authenticator,
     )
-    logger.info("Created server:%r", server)
+    LOGGER.info("Created server: %r", server)
     return server
 
 
@@ -126,56 +125,39 @@ def context_serve(
 
     .. seealso:: :func:`server_from_config`
     """
-    server = None
-    try:
-        with context, coilmq.util.codec.register():
-            # There's a possibility here that init_logging() will throw an exception.  If it does,
-            # AND we're in a daemon context, then we're not going to be able to do anything with it.
-            # We've got no stderr/stdout here; and so (to my knowledge) no reliable (& cross-platform),
-            # way to display errors.
-            level = logging.DEBUG if debug else logging.INFO
-            init_logging(logfile=logfile, loglevel=level, configfile=configfile)
+    log_level = logging.DEBUG if debug else logging.INFO
 
-            server = server_from_config()
-            logger.info("Stomp server listening on %s:%s", *server.server_address)
+    with context, coilmq.util.codec.register():
+        # There's a possibility here that init_logging() will throw an exception.  If it does,
+        # AND we're in a daemon context, then we're not going to be able to do anything with it.
+        # We've got no stderr/stdout here; and so (to my knowledge) no reliable (& cross-platform),
+        # way to display errors.
+        init_logging(logfile=logfile, loglevel=log_level, configfile=configfile)
 
-            if debug:
-                poll_interval = float(CONFIG.get("coilmq", "debug.stats_poll_interval"))
-                if poll_interval:  # Setting poll_interval to 0 effectively disables it.
+        server = server_from_config()
 
-                    def diagnostic_loop(server):
-                        log = logger
-                        while True:
-                            log.debug("Stats heartbeat -------------------------------")
-                            store = server.queue_manager.store
-                            for dest in store.destinations():
-                                log.debug(
-                                    "Queue %s: size=%s, subscribers=%s",
-                                    dest,
-                                    store.size(dest),
-                                    server.queue_manager.subscriber_count(dest),
-                                )
+        interval = CONFIG.getfloat("coilmq", "debug.stats_poll_interval")
+        stats_thread = RepeatThread(interval, stats_loop, (server,))
+        stats_thread.name = "DiagnosticThread"
+        stats_thread.daemon = True
 
-                            # TODO: Add number of subscribers?
+        try:
+            if log_level <= logging.DEBUG and interval > 0:
+                stats_thread.start()
 
-                            time.sleep(poll_interval)
+            LOGGER.info("STOMP server listening on %s:%s", *server.server_address)
 
-                    diagnostic_thread = threading.Thread(
-                        target=diagnostic_loop, name="DiagnosticThread", args=(server,)
-                    )
-                    diagnostic_thread.daemon = True
-                    diagnostic_thread.start()
+            try:
+                server.serve_forever()
+            finally:
+                stats_thread.cancel()
 
-            server.serve_forever()
-
-    except (KeyboardInterrupt, SystemExit) as e:
-        logger.info("Stomp server stopped by user interrupt.")
-        raise SystemExit() from e
-    except Exception as e:
-        logger.exception("Stomp server stopped due to error")
-        raise SystemExit() from e
-    finally:
-        if server:
+        except (KeyboardInterrupt, SystemExit):
+            LOGGER.info("Stomp server stopped by user interrupt.")
+        except Exception:
+            LOGGER.exception("Stomp server stopped due to error")
+        finally:
+            server.shutdown()
             server.server_close()
 
 
@@ -332,10 +314,27 @@ def main(config, host, port, logfile, debug, daemon, uid, gid, pidfile, umask, r
     _main(**locals())
 
 
+class RepeatThread(threading.Timer):
+    def run(self) -> None:
+        while not self.finished.wait(self.interval):
+            self.function(*self.args, **self.kwargs)
+
+
+def stats_loop(server: ThreadedStompServer) -> None:
+    LOGGER.debug("Stats heartbeat -------------------------------")
+    for destination in server.queue_manager.store.destinations():
+        LOGGER.debug(
+            "Queue %s: size=%s, subscribers=%s",
+            destination,
+            server.queue_manager.store.size(destination),
+            server.queue_manager.subscriber_count(destination),
+        )
+
+
 if __name__ == "__main__":
     try:
         main()
     except (KeyboardInterrupt, SystemExit):
         pass
     except Exception:
-        logger.exception("Server terminated due to error")
+        LOGGER.exception("Server terminated due to error")
