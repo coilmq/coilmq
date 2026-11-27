@@ -7,8 +7,6 @@ module.
 """
 
 import importlib
-import logging
-import logging.config
 import os.path
 from configparser import ConfigParser
 from typing import Final
@@ -62,57 +60,11 @@ def init_config(config_file=None):
 
     :raises ValueError: if the specified file could not be read.
 
-    .. seealso:: :func:`init_logging`
     """
     if config_file and os.path.exists(config_file):
         read = CONFIG.read([config_file])
         if not read:
             raise ValueError(f"Could not read configuration from file: {config_file}")
-
-
-def init_logging(logfile=None, loglevel=logging.INFO, configfile=None):
-    """Configures logging with :py:func:`logging.basicConfig` or :py:func:`logging.config.fileConfig`.
-
-    This is performed separately from :func:`init_config` in order to support the case where
-    logging should happen independent of (usu. *after*) other aspects of the configuration
-    initialization. For example, if logging may need to be initialized within a daemon
-    context.
-
-    :param logfile: An explicitly specified logfile destination.  If this is specified
-        in addition to default logging, a warning will be issued.
-    :type logfile: str
-    :param loglevel: Which level to use when logging to explicitly specified file or
-        stdout.
-    :type loglevel: int
-    :param configfile: The path to a configuration file.  This takes precedence over any
-        explicitly specified logfile/loglevel (but a warning will be logged if both are
-        specified). If the file is not specified or does not exist and no logfile was
-        specified, then the default.cfg configuration file will be used to initialize
-        logging.
-    :type configfile: str
-
-    """
-    # If a config file was specified, we will use that in place of the
-    # explicitly
-    use_configfile = False
-    if configfile and os.path.exists(configfile):
-        testcfg = ConfigParser()
-        read = testcfg.read(configfile)
-        use_configfile = read and testcfg.has_section("loggers")
-
-    if use_configfile:
-        logging.config.fileConfig(configfile)
-        if logfile:
-            msg = "Config file conflicts with explicitly specified logfile; config file takes precedence."
-            logging.warning(msg)  # noqa: LOG015
-    else:
-        log_format = (
-            "%(asctime)s [%(threadName)s] %(name)s - %(levelname)s - %(message)s"
-        )
-        if logfile:
-            logging.basicConfig(filename=logfile, level=loglevel, format=log_format)
-        else:
-            logging.basicConfig(level=loglevel, format=log_format)
 
 
 def resolve_name(name):

@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import enum
 import logging
+import logging.config
 import os
 import threading
 import warnings
+from configparser import ConfigParser
 from contextlib import nullcontext
 from typing import TYPE_CHECKING
 
@@ -15,7 +18,7 @@ import pid
 from click_option_group import optgroup
 
 import coilmq.util.codec
-from coilmq.config import CONFIG, init_config, init_logging, resolve_name
+from coilmq.config import CONFIG, init_config, resolve_name
 from coilmq.queue import QueueManager
 from coilmq.server.socket_server import ThreadedStompServer
 from coilmq.topic import TopicManager
@@ -90,16 +93,68 @@ def server_from_config(config=None, server_class=None, additional_kwargs=None):
 
 def serve(
     config: str | None,
+    log: bool | None,
     log_filename: str | None,
-    debug: bool,
+    log_format: str | None,
+    log_level: int | None,
 ):
-    log_level = logging.DEBUG if debug else logging.INFO
+    """Start the STOMP server.
 
-    # There's a possibility here that init_logging() will throw an exception.  If it does,
-    # AND we're in a daemon context, then we're not going to be able to do anything with it.
-    # We've got no stderr/stdout here; and so (to my knowledge) no reliable (& cross-platform),
-    # way to display errors.
-    init_logging(logfile=log_filename, loglevel=log_level, configfile=config)
+    This function uses the provided arguments to configure logging then starts the STOMP
+    server.
+
+    If ``config`` is a path to a readable INI-style file with a ``[loggers]`` section,
+    it is passed to `logging.config.fileConfig` and other ``log*`` arguments are
+    ignored.  If ``log`` is `True` or any of the ``log_*`` arguments are non-`None`,
+    configure logging with `logging.basicConfig`; default values are substituted for
+    ``log_*`` arguments whose values are `None`.
+
+    :param config: A CoilMQ configuration file path; used to configure logging if
+        non-`None`.
+
+    :param log: If `True`, configure logging with `logging.basicConfig`.
+
+    :param log_filename: The path to a file where log messages will be written.  If
+        `logging.basicConfig` is called and this argument is `None`, log messages are
+        not written to a file.
+
+    :param log_format: A %-style log message format string.  See the `LogRecord
+        attributes`_ documentation for a listing of the fields a format string can
+        reference.  If `logging.basicConfig` is called and this argument is `None`, the
+        format string used is ``"%(levelname)-8s %(message)s"``.
+
+    :param log_level: A numeric log level.  If `logging.basicConfig` is called and this
+        argument is `None`, the log level is `logging.INFO`.
+
+    .. _LogRecord attributes:
+        https://docs.python.org/3/library/logging.html#logrecord-attributes
+
+    """
+    log_arg = any(x is not None for x in [log_filename, log_format, log_level])
+
+    # Option 1: configure logging with user-provided configuration file
+    cfg = ConfigParser()
+
+    if (
+        config is not None
+        and os.path.exists(config)
+        and cfg.read([config])
+        and cfg.has_section("loggers")
+    ):
+        if log or log_arg:
+            logging.warning(  # ruff: ignore[root-logger-call]
+                "configuring logging with file %s (ignoring logging CLI argument)",
+                config,
+            )
+        logging.config.fileConfig(config, disable_existing_loggers=False)
+
+    # Option 2: configure logging with user-provided --log* arguments
+    if log or log_arg:
+        logging.basicConfig(
+            filename=log_filename,
+            level=logging.INFO if log_level is None else log_level,
+            format="%(levelname)-8s %(message)s" if log_format is None else log_format,
+        )
 
     server = server_from_config()
 
@@ -109,7 +164,7 @@ def serve(
     stats_thread.daemon = True
 
     try:
-        if log_level <= logging.DEBUG and interval > 0:
+        if interval > 0:
             stats_thread.start()
 
         LOGGER.info("STOMP server listening on %s:%s", *server.server_address)
@@ -126,6 +181,15 @@ def serve(
     finally:
         server.shutdown()
         server.server_close()
+
+
+class LogLevel(enum.IntEnum):
+    CRITICAL = logging.CRITICAL
+    FATAL = logging.FATAL
+    ERROR = logging.ERROR
+    WARNING = logging.WARNING
+    INFO = logging.INFO
+    DEBUG = logging.DEBUG
 
 
 @click.command()
@@ -150,7 +214,7 @@ def serve(
 @optgroup.option(
     "-p",
     "--port",
-    default=int(CONFIG.get("coilmq", "listen_port")),
+    default=CONFIG.getint("coilmq", "listen_port"),
     show_default=True,
     help="listen on the specified port; overrides coilmq.listen_port in CONFIG",
     type=int,
@@ -163,14 +227,36 @@ def serve(
 @optgroup.option(
     "-l",
     "--logfile",
-    help="Log to specified file (unless logging configured in config file).",
+    help="Log to specified file (unless logging configured in config file). (DEPRECATED)",
     metavar="FILE",
 )
 @optgroup.option(
     "--debug",
-    default=False,
+    default=None,
+    flag_value=True,
     is_flag=True,
-    help="Sets logging to debug (unless logging configured in config file).",
+    help="Sets logging to debug (unless logging configured in config file). (DEPRECATED)",
+)
+@optgroup.option(
+    "--log",
+    default=None,
+    flag_value=True,
+    is_flag=True,
+    help="enable logging",
+)
+@optgroup.option(
+    "--log-filename",
+    help="configure logging to write to the specified file; implies --log",
+    metavar="FILE",
+)
+@optgroup.option(
+    "--log-format",
+    help="configure logging to use the specified format; implies --log",
+)
+@optgroup.option(
+    "--log-level",
+    type=click.Choice(LogLevel, case_sensitive=False),
+    help="configure logging to display logs at (and above) the specified level; implies --log",
 )
 @optgroup.group(
     name="Daemon configuration",
@@ -221,7 +307,11 @@ def main(
     host: str | None,
     port: int | None,
     logfile: str | None,
-    debug: bool,
+    debug: bool | None,
+    log: bool | None,
+    log_filename: str | None,
+    log_format: str | None,
+    log_level: int | None,
     daemon: bool,
     uid: int | None,
     gid: int | None,
@@ -230,8 +320,6 @@ def main(
     rundir: str,
 ):
     """Run a CoilMQ server."""
-    # Initialize the configuration before entering the context block.  Wait until inside
-    # the context block to initialize logging.
     init_config(config)
 
     if host is not None:
@@ -239,6 +327,21 @@ def main(
 
     if port is not None:
         CONFIG.set("coilmq", "listen_port", str(port))
+
+    if logfile is not None:
+        warnings.warn("The option 'logfile' is deprecated.", DeprecationWarning)
+
+    if debug is not None:
+        warnings.warn("The option 'debug' is deprecated.", DeprecationWarning)
+
+    if log is None and (debug is not None or logfile is not None):
+        log = True
+
+    if log_filename is None and logfile is not None:
+        log_filename = logfile
+
+    if log_level is None and debug is not None:
+        log_level = logging.DEBUG
 
     if daemon and os.name != "posix":
         warnings.warn("daemon mode is only supported on POSIX")
@@ -256,7 +359,7 @@ def main(
         context = nullcontext()
 
     with context, coilmq.util.codec.register():
-        serve(config, logfile, debug)
+        serve(config, log, log_filename, log_format, log_level)
 
 
 class RepeatThread(threading.Timer):
