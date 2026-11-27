@@ -43,42 +43,33 @@ limitations under the License."""
 LOGGER = logging.getLogger(__name__)
 
 
-def server_from_config(config=None, server_class=None, additional_kwargs=None):
-    """Gets a configured :class:`coilmq.server.socket_server.StompServer` from specified config.
+def server_from_config() -> ThreadedStompServer:
+    """Initialize a server from the global configuration.
 
-    If :paramref:`config` is :py:obj:`None`, global L{coilmq.config.config} var will be used instead.
+    :returns: The configured server.
 
-    :param config: A loaded configuration.
-    :type config: configparser.ConfigParser
-
-    :param server_class:
-        Which class to use for the server.
-
-    :param additional_kwargs:
-        Any additional args that should be passed to class.
-
-    :returns: The configured StompServer.
-    :rtype: coilmq.server.socket_server.StompServer
     """
-    if not config:
-        config = CONFIG
+    queue_store_factory = resolve_name(CONFIG.get("coilmq", "qstore.factory"))
 
-    queue_store_factory = resolve_name(config.get("coilmq", "qstore.factory"))
     subscriber_scheduler_factory = resolve_name(
-        config.get("coilmq", "scheduler.subscriber_priority_factory")
-    )
-    queue_scheduler_factory = resolve_name(
-        config.get("coilmq", "scheduler.queue_priority_factory")
+        CONFIG.get("coilmq", "scheduler.subscriber_priority_factory")
     )
 
-    if config.has_option("coilmq", "auth.factory"):
-        authenticator_factory = resolve_name(config.get("coilmq", "auth.factory"))
+    queue_scheduler_factory = resolve_name(
+        CONFIG.get("coilmq", "scheduler.queue_priority_factory")
+    )
+
+    if CONFIG.has_option("coilmq", "auth.factory"):
+        authenticator_factory = resolve_name(CONFIG.get("coilmq", "auth.factory"))
         authenticator: Authenticator = authenticator_factory()
     else:
         authenticator = None
 
+    addr = CONFIG.get("coilmq", "listen_addr")
+    port = CONFIG.getint("coilmq", "listen_port")
+
     server = ThreadedStompServer(
-        (config.get("coilmq", "listen_addr"), config.getint("coilmq", "listen_port")),
+        (addr, port),
         queue_manager=QueueManager(
             store=queue_store_factory(),
             subscriber_scheduler=subscriber_scheduler_factory(),
@@ -87,7 +78,9 @@ def server_from_config(config=None, server_class=None, additional_kwargs=None):
         topic_manager=TopicManager(),
         authenticator=authenticator,
     )
+
     LOGGER.info("Created server: %r", server)
+
     return server
 
 
