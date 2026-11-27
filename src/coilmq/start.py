@@ -167,10 +167,6 @@ def serve(
         finally:
             stats_thread.cancel()
 
-    except (KeyboardInterrupt, SystemExit):
-        LOGGER.info("Stomp server stopped by user interrupt.")
-    except Exception:
-        LOGGER.exception("Stomp server stopped due to error")
     finally:
         server.shutdown()
         server.server_close()
@@ -373,9 +369,4 @@ def stats_loop(server: ThreadedStompServer) -> None:
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except (KeyboardInterrupt, SystemExit):
-        pass
-    except Exception:
-        LOGGER.exception("Server terminated due to error")
+    main()
