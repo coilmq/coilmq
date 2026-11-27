@@ -187,9 +187,9 @@ def _main(
     daemon=None,
     uid=None,
     gid=None,
-    pidfile=None,
-    umask=None,
-    rundir=None,
+    pidfile: str | None = None,
+    umask: int | None = None,
+    rundir: str | None = None,
 ):
 
     # Note that we must initialize the configuration before we enter the context
@@ -214,9 +214,9 @@ def _main(
         pydaemon.DaemonContext(
             uid=uid,
             gid=gid,
-            pidfile=pid.PidFile(pidname=pidfile) if pidfile else None,
-            umask=int(umask, 8),
-            working_directory=rundir,
+            pidfile=None if pidfile is None else pid.PidFile(pidname=pidfile),
+            umask=0 if umask is None else umask,
+            working_directory="/" if rundir is None else rundir,
         )
         if daemon and pydaemon
         else contextmanager(lambda: (yield))()
@@ -242,19 +242,23 @@ def _main(
 @click.option(
     "-c",
     "--config",
-    help="Read configuration from FILE. (CLI options override config file.)",
-    metavar="FILE",
+    help="read configuration from CONFIG; extends the default configuration",
+    metavar="CONFIG",
 )
 @click.option(
     "-b",
     "--host",
-    help="Listen on specified address (default 127.0.0.1)",
+    default=CONFIG.get("coilmq", "listen_addr"),
+    show_default=True,
+    help="listen on the specified address; overrides coilmq.listen_addr in CONFIG",
     metavar="ADDR",
 )
 @click.option(
     "-p",
     "--port",
-    help="Listen on specified port (default 61613)",
+    default=int(CONFIG.get("coilmq", "listen_port")),
+    show_default=True,
+    help="listen on the specified port; overrides coilmq.listen_port in CONFIG",
     type=int,
     metavar="PORT",
 )
@@ -274,31 +278,44 @@ def _main(
     "-d",
     "--daemon",
     default=False,
+    show_default=True,
     is_flag=True,
-    help="Run server as a daemon (default False).",
+    help="run server as a daemon",
 )
 @click.option(
-    "-u", "--uid", help="The user/UID to use for daemon process.", metavar="UID"
+    "-u",
+    "--uid",
+    help="daemon process UID",
+    type=int,
+    metavar="UID",
 )
 @click.option(
-    "-g", "--gid", help="The group/GID to use for daemon process.", metavar="GID"
+    "-g",
+    "--gid",
+    help="daemon process GID",
+    type=int,
+    metavar="GID",
 )
-@click.option("--pidfile", help="The PID file to use.", metavar="FILE")
 @click.option(
-    "--umask", help="Umask (octal) to apply for daemonized process.", metavar="MASK"
+    "--pidfile",
+    help="file path for the PID file that the daemon will create",
+    metavar="FILE",
+)
+@click.option(
+    "--umask",
+    help="umask, in octal, to apply to the daemon process",
+    type=lambda x: int(x, 8),
+    metavar="MASK",
 )
 @click.option(
     "--rundir",
-    help="The working directory to use for the daemonized process (default /).",
+    default="/",
+    show_default=True,
+    help="daemon process working directory",
     metavar="DIR",
 )
 def main(config, host, port, logfile, debug, daemon, uid, gid, pidfile, umask, rundir):
-    """Main entry point for running a socket server from the commandline.
-
-    This method will read in options from the commandline and call the :func:`config.init_config` method
-    to get everything setup.  Then, depending on whether deamon mode was specified or not,
-    the process may be forked (or not) and the server will be started.
-    """
+    """Run a CoilMQ server."""
     _main(**locals())
 
 
