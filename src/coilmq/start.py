@@ -2,27 +2,23 @@
 
 from __future__ import annotations
 
+import enum
 import logging
+import logging.config
 import os
 import threading
-import time
 import warnings
-from contextlib import contextmanager
+from configparser import ConfigParser
+from contextlib import nullcontext
 from typing import TYPE_CHECKING
 
-is_nt = os.name == "nt"
-
-if not is_nt:
-    import daemon as pydaemon
-    import pid
-else:
-    pydaemon = pid = None
-
 import click
+import daemon as pydaemon
+import pid
+from click_option_group import optgroup
 
 import coilmq.util.codec
-from coilmq.config import config as global_config
-from coilmq.config import init_config, init_logging, resolve_name
+from coilmq.config import CONFIG, init_config, resolve_name
 from coilmq.queue import QueueManager
 from coilmq.server.socket_server import ThreadedStompServer
 from coilmq.topic import TopicManager
@@ -44,45 +40,36 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License."""
 
-logger = logging.getLogger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 
-def server_from_config(config=None, server_class=None, additional_kwargs=None):
-    """Gets a configured :class:`coilmq.server.socket_server.StompServer` from specified config.
+def server_from_config() -> ThreadedStompServer:
+    """Initialize a server from the global configuration.
 
-    If :paramref:`config` is :py:obj:`None`, global L{coilmq.config.config} var will be used instead.
+    :returns: The configured server.
 
-    :param config: A loaded configuration.
-    :type config: configparser.ConfigParser
-
-    :param server_class:
-        Which class to use for the server.
-
-    :param additional_kwargs:
-        Any additional args that should be passed to class.
-
-    :returns: The configured StompServer.
-    :rtype: coilmq.server.socket_server.StompServer
     """
-    if not config:
-        config = global_config
+    queue_store_factory = resolve_name(CONFIG.get("coilmq", "qstore.factory"))
 
-    queue_store_factory = resolve_name(config.get("coilmq", "qstore.factory"))
     subscriber_scheduler_factory = resolve_name(
-        config.get("coilmq", "scheduler.subscriber_priority_factory")
-    )
-    queue_scheduler_factory = resolve_name(
-        config.get("coilmq", "scheduler.queue_priority_factory")
+        CONFIG.get("coilmq", "scheduler.subscriber_priority_factory")
     )
 
-    if config.has_option("coilmq", "auth.factory"):
-        authenticator_factory = resolve_name(config.get("coilmq", "auth.factory"))
+    queue_scheduler_factory = resolve_name(
+        CONFIG.get("coilmq", "scheduler.queue_priority_factory")
+    )
+
+    if CONFIG.has_option("coilmq", "auth.factory"):
+        authenticator_factory = resolve_name(CONFIG.get("coilmq", "auth.factory"))
         authenticator: Authenticator = authenticator_factory()
     else:
         authenticator = None
 
+    addr = CONFIG.get("coilmq", "listen_addr")
+    port = CONFIG.getint("coilmq", "listen_port")
+
     server = ThreadedStompServer(
-        (config.get("coilmq", "listen_addr"), config.getint("coilmq", "listen_port")),
+        (addr, port),
         queue_manager=QueueManager(
             store=queue_store_factory(),
             subscriber_scheduler=subscriber_scheduler_factory(),
@@ -91,224 +78,292 @@ def server_from_config(config=None, server_class=None, additional_kwargs=None):
         topic_manager=TopicManager(),
         authenticator=authenticator,
     )
-    logger.info("Created server:%r", server)
+
+    LOGGER.info("Created server: %r", server)
+
     return server
 
 
-def context_serve(
-    context,
-    configfile,
-    listen_addr,
-    listen_port,
-    logfile,
-    debug,
-    daemon,
-    uid,
-    gid,
-    pidfile,
-    umask,
-    rundir,
-):
-    """Takes a context object, which implements the __enter__/__exit__ "with" interface
-    and starts a server within that context.
+def serve(
+    config: str | None,
+    log: bool | None,
+    log_filename: str | None,
+    log_format: str | None,
+    log_level: int | None,
+) -> None:
+    """Start the STOMP server.
 
-    This method is a refactored single-place for handling the server-run code whether
-    running in daemon or non-daemon mode.  It is invoked with a dummy (passthrough)
-    context object for the non-daemon use case.
+    This function uses the provided arguments to configure logging then starts the STOMP
+    server.
 
-    :param options: The compiled collection of options that need to be parsed.
-    :type options: configparser.ConfigParser
-    :param context: The context object that implements __enter__/__exit__ "with"
-        methods.
-    :type context: object
+    If ``config`` is a path to a readable INI-style file with a ``[loggers]`` section,
+    it is passed to `logging.config.fileConfig` and other ``log*`` arguments are
+    ignored.  If ``log`` is `True` or any of the ``log_*`` arguments are non-`None`,
+    configure logging with `logging.basicConfig`; default values are substituted for
+    ``log_*`` arguments whose values are `None`.
 
-    :raises Exception: Any underlying exception will be logged but then re-raised.
+    :param config: A CoilMQ configuration file path; used to configure logging if
+        non-`None`.
 
-    .. seealso:: :func:`server_from_config`
+    :param log: If `True`, configure logging with `logging.basicConfig`.
+
+    :param log_filename: The path to a file where log messages will be written.  If
+        `logging.basicConfig` is called and this argument is `None`, log messages are
+        not written to a file.
+
+    :param log_format: A %-style log message format string.  See the `LogRecord
+        attributes`_ documentation for a listing of the fields a format string can
+        reference.  If `logging.basicConfig` is called and this argument is `None`, the
+        format string used is ``"%(levelname)-8s %(message)s"``.
+
+    :param log_level: A numeric log level.  If `logging.basicConfig` is called and this
+        argument is `None`, the log level is `logging.INFO`.
+
+    .. _LogRecord attributes:
+        https://docs.python.org/3/library/logging.html#logrecord-attributes
+
     """
-    server = None
-    try:
-        with context, coilmq.util.codec.register():
-            # There's a possibility here that init_logging() will throw an exception.  If it does,
-            # AND we're in a daemon context, then we're not going to be able to do anything with it.
-            # We've got no stderr/stdout here; and so (to my knowledge) no reliable (& cross-platform),
-            # way to display errors.
-            level = logging.DEBUG if debug else logging.INFO
-            init_logging(logfile=logfile, loglevel=level, configfile=configfile)
+    log_arg = any(x is not None for x in [log_filename, log_format, log_level])
 
-            server = server_from_config()
-            logger.info("Stomp server listening on %s:%s", *server.server_address)
+    # Option 1: configure logging with user-provided configuration file
+    cfg = ConfigParser()
 
-            if debug:
-                poll_interval = float(
-                    global_config.get("coilmq", "debug.stats_poll_interval")
-                )
-                if poll_interval:  # Setting poll_interval to 0 effectively disables it.
-
-                    def diagnostic_loop(server):
-                        log = logger
-                        while True:
-                            log.debug("Stats heartbeat -------------------------------")
-                            store = server.queue_manager.store
-                            for dest in store.destinations():
-                                log.debug(
-                                    "Queue %s: size=%s, subscribers=%s",
-                                    dest,
-                                    store.size(dest),
-                                    server.queue_manager.subscriber_count(dest),
-                                )
-
-                            # TODO: Add number of subscribers?
-
-                            time.sleep(poll_interval)
-
-                    diagnostic_thread = threading.Thread(
-                        target=diagnostic_loop, name="DiagnosticThread", args=(server,)
-                    )
-                    diagnostic_thread.daemon = True
-                    diagnostic_thread.start()
-
-            server.serve_forever()
-
-    except (KeyboardInterrupt, SystemExit) as e:
-        logger.info("Stomp server stopped by user interrupt.")
-        raise SystemExit() from e
-    except Exception as e:
-        logger.exception("Stomp server stopped due to error")
-        raise SystemExit() from e
-    finally:
-        if server:
-            server.server_close()
-
-
-def _main(
-    config=None,
-    host=None,
-    port=None,
-    logfile=None,
-    debug=None,
-    daemon=None,
-    uid=None,
-    gid=None,
-    pidfile=None,
-    umask=None,
-    rundir=None,
-):
-
-    # Note that we must initialize the configuration before we enter the context
-    # block; however, we _cannot_ initialize logging until we are in the context block
-    # (so we defer that until the context_serve call.)
-    init_config(config)
-
-    if host is not None:
-        global_config.set("coilmq", "listen_addr", host)
-
-    if port is not None:
-        global_config.set("coilmq", "listen_port", str(port))
-
-        if daemon and is_nt:
-            warnings.warn(
-                "Daemon context is not available for NT platform", stacklevel=2
+    if (
+        config is not None
+        and os.path.exists(config)
+        and cfg.read([config])
+        and cfg.has_section("loggers")
+    ):
+        if log or log_arg:
+            logging.warning(  # ruff: ignore[root-logger-call]
+                "configuring logging with file %s (ignoring logging CLI argument)",
+                config,
             )
+        logging.config.fileConfig(config, disable_existing_loggers=False)
 
-    # in an on-daemon mode, we use a dummy context object
-    # so we can use the same run-server code as the daemon version.
-    context = (
-        pydaemon.DaemonContext(
-            uid=uid,
-            gid=gid,
-            pidfile=pid.PidFile(pidname=pidfile) if pidfile else None,
-            umask=int(umask, 8),
-            working_directory=rundir,
+    # Option 2: configure logging with user-provided --log* arguments
+    if log or log_arg:
+        logging.basicConfig(
+            filename=log_filename,
+            level=logging.INFO if log_level is None else log_level,
+            format="%(levelname)-8s %(message)s" if log_format is None else log_format,
         )
-        if daemon and pydaemon
-        else contextmanager(lambda: (yield))()
-    )
 
-    context_serve(
-        context,
-        config,
-        host,
-        port,
-        logfile,
-        debug,
-        daemon,
-        uid,
-        gid,
-        pidfile,
-        umask,
-        rundir,
-    )
+    server = server_from_config()
+
+    interval = CONFIG.getfloat("coilmq", "debug.stats_poll_interval")
+    stats_thread = RepeatThread(interval, stats_loop, (server,))
+    stats_thread.name = "DiagnosticThread"
+    stats_thread.daemon = True
+
+    if interval > 0:
+        stats_thread.start()
+
+    LOGGER.info("STOMP server listening on %s:%s", *server.server_address)
+
+    try:
+        server.serve_forever()
+    finally:
+        stats_thread.cancel()
+        server.shutdown()
+        server.server_close()
+
+
+class RepeatThread(threading.Timer):
+    def run(self) -> None:
+        while not self.finished.wait(self.interval):
+            self.function(*self.args, **self.kwargs)
+
+
+def stats_loop(server: ThreadedStompServer) -> None:
+    LOGGER.debug("Stats heartbeat -------------------------------")
+    for destination in server.queue_manager.store.destinations():
+        LOGGER.debug(
+            "Queue %s: size=%s, subscribers=%s",
+            destination,
+            server.queue_manager.store.size(destination),
+            server.queue_manager.subscriber_count(destination),
+        )
+
+
+class LogLevel(enum.IntEnum):
+    CRITICAL = logging.CRITICAL
+    FATAL = logging.FATAL
+    ERROR = logging.ERROR
+    WARNING = logging.WARNING
+    INFO = logging.INFO
+    DEBUG = logging.DEBUG
 
 
 @click.command()
 @click.option(
     "-c",
     "--config",
-    help="Read configuration from FILE. (CLI options override config file.)",
-    metavar="FILE",
+    help="read configuration from CONFIG; extends the default configuration",
+    metavar="CONFIG",
 )
-@click.option(
+@optgroup.group(
+    "Server configuration",
+    help="These options override settings loaded from configuration files.",
+)
+@optgroup.option(
     "-b",
     "--host",
-    help="Listen on specified address (default 127.0.0.1)",
+    default=CONFIG.get("coilmq", "listen_addr"),
+    show_default=True,
+    help="listen on the specified address; overrides coilmq.listen_addr in CONFIG",
     metavar="ADDR",
 )
-@click.option(
+@optgroup.option(
     "-p",
     "--port",
-    help="Listen on specified port (default 61613)",
+    default=CONFIG.getint("coilmq", "listen_port"),
+    show_default=True,
+    help="listen on the specified port; overrides coilmq.listen_port in CONFIG",
     type=int,
     metavar="PORT",
 )
-@click.option(
+@optgroup.group(
+    "Logging configuration",
+    help="These options are ignored if CONFIG has a [loggers] section.",
+)
+@optgroup.option(
     "-l",
     "--logfile",
-    help="Log to specified file (unless logging configured in config file).",
+    help="Log to specified file (unless logging configured in config file). (DEPRECATED)",
     metavar="FILE",
 )
-@click.option(
+@optgroup.option(
     "--debug",
-    default=False,
+    default=None,
+    flag_value=True,
     is_flag=True,
-    help="Sets logging to debug (unless logging configured in config file).",
+    help="Sets logging to debug (unless logging configured in config file). (DEPRECATED)",
 )
-@click.option(
+@optgroup.option(
+    "--log",
+    default=None,
+    flag_value=True,
+    is_flag=True,
+    help="enable logging",
+)
+@optgroup.option(
+    "--log-filename",
+    help="configure logging to write to the specified file; implies --log",
+    metavar="FILE",
+)
+@optgroup.option(
+    "--log-format",
+    help="configure logging to use the specified format; implies --log",
+)
+@optgroup.option(
+    "--log-level",
+    type=click.Choice(LogLevel, case_sensitive=False),
+    help="configure logging to display logs at (and above) the specified level; implies --log",
+)
+@optgroup.group(
+    name="Daemon configuration",
+    help="These options are ignored on non-POSIX operating systems.",
+)
+@optgroup.option(
     "-d",
     "--daemon",
     default=False,
+    show_default=True,
     is_flag=True,
-    help="Run server as a daemon (default False).",
+    help="run server as a daemon",
 )
-@click.option(
-    "-u", "--uid", help="The user/UID to use for daemon process.", metavar="UID"
+@optgroup.option(
+    "-u",
+    "--uid",
+    help="daemon process UID",
+    type=int,
+    metavar="UID",
 )
-@click.option(
-    "-g", "--gid", help="The group/GID to use for daemon process.", metavar="GID"
+@optgroup.option(
+    "-g",
+    "--gid",
+    help="daemon process GID",
+    type=int,
+    metavar="GID",
 )
-@click.option("--pidfile", help="The PID file to use.", metavar="FILE")
-@click.option(
-    "--umask", help="Umask (octal) to apply for daemonized process.", metavar="MASK"
+@optgroup.option(
+    "--pidfile",
+    help="file path for the PID file that the daemon will create",
+    metavar="FILE",
 )
-@click.option(
+@optgroup.option(
+    "--umask",
+    help="umask, in octal, to apply to the daemon process",
+    type=lambda x: int(x, 8),
+    metavar="MASK",
+)
+@optgroup.option(
     "--rundir",
-    help="The working directory to use for the daemonized process (default /).",
+    default="/",
+    show_default=True,
+    help="daemon process working directory",
     metavar="DIR",
 )
-def main(config, host, port, logfile, debug, daemon, uid, gid, pidfile, umask, rundir):
-    """Main entry point for running a socket server from the commandline.
+def main(
+    config: str | None,
+    host: str | None,
+    port: int | None,
+    logfile: str | None,
+    debug: bool | None,
+    log: bool | None,
+    log_filename: str | None,
+    log_format: str | None,
+    log_level: int | None,
+    daemon: bool,
+    uid: int | None,
+    gid: int | None,
+    pidfile: str | None,
+    umask: int | None,
+    rundir: str,
+) -> None:
+    """Run a CoilMQ server."""
+    init_config(config)
 
-    This method will read in options from the commandline and call the :func:`config.init_config` method
-    to get everything setup.  Then, depending on whether deamon mode was specified or not,
-    the process may be forked (or not) and the server will be started.
-    """
-    _main(**locals())
+    if host is not None:
+        CONFIG.set("coilmq", "listen_addr", host)
+
+    if port is not None:
+        CONFIG.set("coilmq", "listen_port", str(port))
+
+    if logfile is not None:
+        warnings.warn("The option 'logfile' is deprecated.", DeprecationWarning)
+
+    if debug is not None:
+        warnings.warn("The option 'debug' is deprecated.", DeprecationWarning)
+
+    if log is None and (debug is not None or logfile is not None):
+        log = True
+
+    if log_filename is None and logfile is not None:
+        log_filename = logfile
+
+    if log_level is None and debug is not None:
+        log_level = logging.DEBUG
+
+    if daemon and os.name != "posix":
+        warnings.warn("daemon mode is only supported on POSIX")
+        daemon = False
+
+    if daemon:
+        context = pydaemon.DaemonContext(
+            uid=uid,
+            gid=gid,
+            pidfile=None if pidfile is None else pid.PidFile(pidname=pidfile),
+            umask=0 if umask is None else umask,
+            working_directory=rundir,
+        )
+    else:
+        context = nullcontext()
+
+    with context, coilmq.util.codec.register():
+        serve(config, log, log_filename, log_format, log_level)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except (KeyboardInterrupt, SystemExit):
-        pass
-    except Exception:
-        logger.exception("Server terminated due to error")
+    main()

@@ -8,7 +8,7 @@ try:
 except ImportError:  # pragma: no cover
     sys.exit("please, install redis-py package to use redis-store")
 
-from coilmq.config import config
+from coilmq.config import CONFIG
 from coilmq.store import QueueStore
 
 __authors__ = (
@@ -31,7 +31,7 @@ limitations under the License."""
 
 def make_redis_store(cfg=None):
     return RedisQueueStore(
-        redis_conn=redis.Redis(**dict((cfg or config).items("redis")))
+        redis_conn=redis.Redis(**dict((cfg or CONFIG).items("redis")))
     )
 
 

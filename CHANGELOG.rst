@@ -23,9 +23,17 @@ Unreleased
 
 **Added**
 
+- ``--log`` CLI argument to enable logging (:pr:`127`)
+- ``--log-filename`` CLI argument to set log filename (:pr:`127`)
+- ``--log-format`` CLI argument to set the log message format string (:pr:`127`)
+- ``--log-level`` CLI argument to set the log lever (:pr:`127`)
+
 **Changed**
 
 **Deprecated**
+
+- ``--logfile`` CLI argument; use ``--log-filename`` instead (:pr:`127`)
+- ``--debug`` CLI argument; use ``--log-level`` instead (:pr:`127`)
 
 **Removed**
 
