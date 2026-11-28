@@ -1,5 +1,5 @@
 ======================
- coilmq documentation
+ CoilMQ documentation
 ======================
 
 .. toctree::
@@ -22,5 +22,5 @@
    :caption: Project Links
    :hidden:
 
-   Repository <https://github.com/hozn/coilmq>
-   Issues <https://github.com/hozn/coilmq/issues>
+   Repository <https://github.com/coilmq/coilmq>
+   Issues <https://github.com/coilmq/coilmq/issues>

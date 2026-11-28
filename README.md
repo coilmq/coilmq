@@ -1,8 +1,8 @@
 CoilMQ
 ======
 
-[![Actions Status](https://github.com/hozn/coilmq/actions/workflows/ci.yml/badge.svg)](https://github.com/hozn/coilmq/actions)
-[![Coverage Status](https://coveralls.io/repos/hozn/coilmq/badge.svg?branch=master&service=github)](https://coveralls.io/github/hozn/coilmq?branch=master)
+[![Actions Status](https://github.com/coilmq/coilmq/actions/workflows/ci.yml/badge.svg)](https://github.com/coilmq/coilmq/actions)
+[![Coverage Status](https://coveralls.io/repos/coilmq/coilmq/badge.svg?branch=master&service=github)](https://coveralls.io/github/coilmq/coilmq?branch=master)
 [![PyPI downloads](https://img.shields.io/pypi/dm/coilmq.svg)](https://badge.fury.io/py/coilmq)
 
 
@@ -13,7 +13,7 @@ Now!
 
 The preferred way to install the CoilMQ is via github, as it will contain the most recent code
  
-    $ pip install git+https://github.com/hozn/coilmq.git
+    $ pip install git+https://github.com/coilmq/coilmq.git
     
 But you can also install it from PyPI
 
@@ -23,7 +23,7 @@ Run CoilMQ
 
     $ coilmq -b 0.0.0.0 -p 61613
 
-Jump over to [Getting Started Guide](https://github.com/hozn/coilmq/wiki/Getting-Started) for the slightly longer version.
+Jump over to [Getting Started Guide](https://github.com/coilmq/coilmq/wiki/Getting-Started) for the slightly longer version.
 
 Current features
 ================
@@ -43,4 +43,4 @@ At a high-level, this project aims to:
 * Be easy to extend. (e.g. write new auth backend, queue storage)
 * Be well tested.
 
-Take a look at the [Roadmap](https://github.com/hozn/coilmq/wiki/Roadmap) for more details.
+Take a look at the [Roadmap](https://github.com/coilmq/coilmq/wiki/Roadmap) for more details.

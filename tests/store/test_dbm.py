@@ -59,7 +59,7 @@ class TestDbmQueue(BaseQueueTests):
         assert not store.has_frames(dest)
         assert store.size(dest) == 0
 
-    @pytest.mark.xfail(reason="https://github.com/hozn/coilmq/issues/41")
+    @pytest.mark.xfail(reason="https://github.com/coilmq/coilmq/issues/41")
     def test_sync_checkpoint_ops(self, tmp_path: Path) -> None:
         """Test a expected sync behavior with checkpoint_operations param."""
         max_ops = 5
@@ -81,7 +81,7 @@ class TestDbmQueue(BaseQueueTests):
             with closing(DbmQueue(tmp_path)) as store2:
                 assert store2.size(dest) == max_ops + 1
 
-    @pytest.mark.xfail(reason="https://github.com/hozn/coilmq/issues/41")
+    @pytest.mark.xfail(reason="https://github.com/coilmq/coilmq/issues/41")
     def test_sync_checkpoint_timeout(self, tmp_path: Path) -> None:
         """Test a expected sync behavior with checkpoint_timeout param."""
         with closing(DbmQueue(tmp_path, checkpoint_timeout=0.5)) as store:
@@ -125,7 +125,7 @@ class TestDbmQueue(BaseQueueTests):
         with closing(DbmQueue(tmp_path)) as store2:
             assert store2.size(dest) == 1
 
-    @pytest.mark.xfail(reason="https://github.com/hozn/coilmq/issues/41")
+    @pytest.mark.xfail(reason="https://github.com/coilmq/coilmq/issues/41")
     def test_sync_loss(self, tmp_path: Path, store: DbmQueue) -> None:
         """Test metadata loss behavior."""
         dest = "/queue/foo"
