@@ -55,9 +55,9 @@ optional-dependencies.redis = [
 optional-dependencies.sqlalchemy = [
     "sqlalchemy<2",
 ]
-urls.Changelog = "https://github.com/hozn/coilmq/blob/master/CHANGELOG.rst"
-urls.Homepage = "https://github.com/hozn/coilmq"
-urls.Issues = "https://github.com/hozn/issues"
+urls.Changelog = "https://github.com/coilmq/coilmq/blob/master/CHANGELOG.rst"
+urls.Homepage = "https://github.com/coilmq/coilmq"
+urls.Issues = "https://github.com/coilmq/issues"
 scripts.coilmq = "coilmq.start:main"
 
 [dependency-groups]

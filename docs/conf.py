@@ -62,4 +62,4 @@ paramlinks_hyperlink_param = "name"
 # -- Options for sphinx-issues extension -------------------------------------
 # https://github.com/sloria/sphinx-issues
 
-issues_github_path = "hozn/coilmq"
+issues_github_path = "coilmq/coilmq"
