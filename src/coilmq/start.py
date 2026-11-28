@@ -156,18 +156,15 @@ def serve(
     stats_thread.name = "DiagnosticThread"
     stats_thread.daemon = True
 
+    if interval > 0:
+        stats_thread.start()
+
+    LOGGER.info("STOMP server listening on %s:%s", *server.server_address)
+
     try:
-        if interval > 0:
-            stats_thread.start()
-
-        LOGGER.info("STOMP server listening on %s:%s", *server.server_address)
-
-        try:
-            server.serve_forever()
-        finally:
-            stats_thread.cancel()
-
+        server.serve_forever()
     finally:
+        stats_thread.cancel()
         server.shutdown()
         server.server_close()
 
